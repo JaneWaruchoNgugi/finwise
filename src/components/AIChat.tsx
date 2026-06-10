@@ -1,16 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { httpsCallable } from 'firebase/functions';
+import { collection, query, orderBy, limit, getDocs, doc, setDoc } from 'firebase/firestore';
+import { db, functions } from '../lib/firebase';
 import type {
   ChatMessage, FinancialProfile, MonthlyBreakdown, InvestmentSummary,
   Bill, Goal, Habit,
 } from '../types';
 import { formatCurrency, generateId } from '../utils/expenses';
+import { generateFreeAdvisorReply } from '../utils/freeAdvisorAgent';
 
 interface AIChatProps {
+  userId: string;
   profile: FinancialProfile;
   breakdown: MonthlyBreakdown;
   investmentSummary: InvestmentSummary;
   userName?: string;
-  // Extended cross-module context
   bills?: Bill[];
   billsMonthlyTotal?: number;
   goals?: Goal[];
@@ -32,98 +36,67 @@ const QUICK_PROMPTS = [
   'Give me a monthly savings plan',
 ];
 
-const buildSystemPrompt = (
-  profile: FinancialProfile,
-  breakdown: MonthlyBreakdown,
-  summary: InvestmentSummary,
-  bills: Bill[],
-  billsMonthlyTotal: number,
-  goals: Goal[],
-  netWorthSummary: { totalAssets: number; totalLiabilities: number; netWorth: number },
-  habits: Habit[],
-  efCurrent: number,
-  efTarget: number,
-): string => {
-  const spendPct = profile.monthlyIncome > 0
-    ? Math.round((breakdown.totalExpenses / profile.monthlyIncome) * 100) : 0;
-  const efPct = efTarget > 0 ? Math.min(100, Math.round((efCurrent / efTarget) * 100)) : 0;
-  const billsDue = bills.filter((b) => b.status !== 'paid').reduce((s, b) => s + b.amount, 0);
-  const overdueCount = bills.filter((b) => b.status === 'overdue').length;
-  const habitsCompleted = habits.filter((h) => h.done).length;
-  const activeGoals = goals.filter((g) => !g.completed);
+type CallableFn = (data: {
+  userId: string;
+  message: string;
+  conversationHistory: Array<{ role: string; content: string }>;
+}) => Promise<{ data: { reply: string; userMsgId?: string; aiMsgId?: string } }>;
 
-  return `You are FinWise AI — an expert personal finance advisor exclusively for Kenyans. You have LIVE access to the user's complete financial data across ALL modules of FinWise. Give warm, specific, actionable advice. Always reference Kenyan financial instruments: SACCOs, M-Pesa, M-Shwari, KCB M-Pesa, Fuliza, NSE, T-Bills/Bonds via CBK, MMFs (Cytonn ~11%, NCBA ~10.5%, CIC ~10%, Zimele), HELB, NHIF, NSSF, KRA, Faulu, Equity, Co-op Bank, Family Bank.
+const chatWithAdvisor = httpsCallable(functions, 'chatWithAdvisor') as unknown as CallableFn;
 
-Be concise and conversational (2–4 short paragraphs max). Use bullet points for lists. Always end with ONE bold specific action the user can take TODAY.
-
-If the user appears to be in a financial crisis (can't pay bills, severe debt overload, extreme overspending), urgently acknowledge it and recommend they use the SOS Alert button in the Alerts & SOS tab to send their advisor a snapshot immediately.
-
-━━━ LIVE FINANCIAL SNAPSHOT ━━━
-
-INCOME & SPENDING:
-• Monthly Income: ${formatCurrency(profile.monthlyIncome, profile.currency)}/month
-• Total Spent: ${formatCurrency(breakdown.totalExpenses, profile.currency)} (${spendPct}% of income)
-• Necessary Expenses: ${formatCurrency(breakdown.necessaryTotal, profile.currency)}
-• Unnecessary Expenses: ${formatCurrency(breakdown.unnecessaryTotal, profile.currency)}
-• Savings Left: ${formatCurrency(breakdown.savingsLeft, profile.currency)}
-
-INVESTMENTS:
-• Total Invested: ${formatCurrency(summary.totalInvested, profile.currency)}
-• Active Investments: ${summary.activeCount}
-• Projected Annual Return: ${formatCurrency(summary.projectedAnnualReturn, profile.currency)}
-
-BILLS:
-• Monthly Bills Total: ${formatCurrency(billsMonthlyTotal, profile.currency)}
-• Bills Currently Due/Overdue: ${formatCurrency(billsDue, profile.currency)}
-• Overdue Bills: ${overdueCount}
-• All Bills: ${bills.map((b) => `${b.name} KSh${b.amount} [${b.status}]`).join(', ') || 'none added yet'}
-
-NET WORTH:
-• Total Assets: ${formatCurrency(netWorthSummary.totalAssets, profile.currency)}
-• Total Liabilities: ${formatCurrency(netWorthSummary.totalLiabilities, profile.currency)}
-• Net Worth: ${formatCurrency(netWorthSummary.netWorth, profile.currency)}
-
-EMERGENCY FUND:
-• Current: ${formatCurrency(efCurrent, profile.currency)} (${efPct}% of ${formatCurrency(efTarget, profile.currency)} target)
-• Months Covered: ${profile.monthlyIncome > 0 ? (efCurrent / (breakdown.totalExpenses || 1)).toFixed(1) : '0'} months
-
-GOALS (${activeGoals.length} active):
-${activeGoals.length > 0 ? activeGoals.map((g) =>
-  `• ${g.name}: ${Math.min(100, Math.round((g.savedAmount / g.targetAmount) * 100))}% (${formatCurrency(g.savedAmount, profile.currency)} / ${formatCurrency(g.targetAmount, profile.currency)})${g.deadline ? ` — deadline ${g.deadline}` : ''}`
-).join('\n') : '• No active goals'}
-
-DAILY HABITS: ${habitsCompleted}/${habits.length} habits completed today
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
-};
 
 export const AIChat: React.FC<AIChatProps> = ({
+  userId,
   profile, breakdown, investmentSummary, userName,
-  bills = [], billsMonthlyTotal = 0, goals = [],
+  bills = [],
+  billsMonthlyTotal = 0,
+  goals = [],
   netWorthSummary = { totalAssets: 0, totalLiabilities: 0, netWorth: 0 },
-  habits = [], efCurrent = 0, efTarget = 0,
+  habits = [],
+  efCurrent = 0,
+  efTarget = 0,
   onNavigateToAlerts,
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: `Habari${userName ? `, ${userName}` : ''}! 👋 I'm your FinWise AI advisor — and I have live access to ALL your financial data: spending, investments, bills, goals, net worth, emergency fund, and habits.\n\nAsk me anything. What's on your mind?`,
-      timestamp: new Date().toISOString(),
-    },
-  ]);
-  const [input, setInput]     = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const welcomeMsg: ChatMessage = {
+    id: 'welcome',
+    role: 'assistant',
+    content: `Habari${userName ? `, ${userName}` : ''}! 👋 I'm your FinWise financial advisor. I answer money questions using your FinWise data: spending, bills, goals, net worth, emergency fund, investments, and habits.\n\nAsk me about your budget, savings plan, bills, debt, investments, or emergency fund.`,
+    timestamp: new Date().toISOString(),
+  };
+
+  const [messages, setMessages]     = useState<ChatMessage[]>([welcomeMsg]);
+  const [historyLoaded, setLoaded]  = useState(false);
+  const [input, setInput]           = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
+
+  // Load persistent chat history from Firestore on mount
+  useEffect(() => {
+    if (!userId) { setLoaded(true); return; }
+    (async () => {
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'users', userId, 'chat'), orderBy('timestamp', 'asc'), limit(50))
+        );
+        if (!snap.empty) {
+          setMessages(snap.docs.map(d => d.data() as ChatMessage));
+        }
+      } catch {
+        // Firestore unavailable — welcome message stays
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, [userId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
   const sendMessage = async (text: string) => {
-    if (!text.trim() || loading) return;
+    if (!text.trim() || loading || !historyLoaded) return;
     setError(null);
 
     const userMsg: ChatMessage = {
@@ -136,44 +109,56 @@ export const AIChat: React.FC<AIChatProps> = ({
     setLoading(true);
 
     try {
-      const apiMessages = updatedMsgs
-        .filter((m) => m.id !== 'welcome')
-        .map((m) => ({ role: m.role, content: m.content }));
+      const conversationHistory = messages
+        .filter(m => m.id !== 'welcome')
+        .map(m => ({ role: m.role, content: m.content }));
 
-      const finalMessages = apiMessages.length === 0
-        ? [{ role: 'user' as const, content: text.trim() }]
-        : apiMessages;
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: buildSystemPrompt(
-            profile, breakdown, investmentSummary,
-            bills, billsMonthlyTotal, goals, netWorthSummary,
-            habits, efCurrent, efTarget,
-          ),
-          messages: finalMessages,
-        }),
+      const result = await chatWithAdvisor({
+        userId,
+        message: text.trim(),
+        conversationHistory,
       });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error((err as any)?.error?.message || `API error ${response.status}`);
+      const aiMsg: ChatMessage = {
+        id: result.data.aiMsgId || generateId(),
+        role: 'assistant',
+        content: result.data.reply,
+        timestamp: new Date().toISOString(),
+      };
+
+      setMessages(prev => [...prev, aiMsg]);
+    } catch (err: any) {
+      const reply = generateFreeAdvisorReply(text.trim(), {
+        profile,
+        breakdown,
+        investmentSummary,
+        bills,
+        billsMonthlyTotal,
+        goals,
+        netWorthSummary,
+        habits,
+        efCurrent,
+        efTarget,
+      });
+
+      const fallbackMsg: ChatMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: `${reply}
+
+Claude is unavailable right now, so I used the built-in FinWise advisor instead.`,
+        timestamp: new Date().toISOString(),
+      };
+
+      if (userId) {
+        await Promise.all([
+          setDoc(doc(db, 'users', userId, 'chat', userMsg.id), userMsg),
+          setDoc(doc(db, 'users', userId, 'chat', fallbackMsg.id), fallbackMsg),
+        ]);
       }
 
-      const data = await response.json();
-      const reply = data.content?.find((c: any) => c.type === 'text')?.text
-        || 'Sorry, I could not generate a response.';
-
-      setMessages((prev) => [...prev, {
-        id: generateId(), role: 'assistant',
-        content: reply, timestamp: new Date().toISOString(),
-      }]);
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong. Please try again.');
+      setMessages(prev => [...prev, fallbackMsg]);
+      setError(err?.message || 'Claude is unavailable. Used local advisor fallback.');
     } finally {
       setLoading(false);
     }
@@ -190,10 +175,10 @@ export const AIChat: React.FC<AIChatProps> = ({
     text.split('\n').map((line, i) => {
       if (line.startsWith('- ') || line.startsWith('• '))
         return <div key={i} style={S.bullet}>• {line.replace(/^[•\-] /, '')}</div>;
-      const boldLine = line.replace(/\*\*(.+?)\*\*/g, '');
       if (line.startsWith('**') && line.endsWith('**'))
         return <div key={i} style={S.boldLine}>{line.slice(2, -2)}</div>;
       if (line === '') return <div key={i} style={{ height: 6 }} />;
+      const boldLine = line.replace(/\*\*(.+?)\*\*/g, '$1');
       return <div key={i}>{boldLine || line}</div>;
     });
 
@@ -206,7 +191,7 @@ export const AIChat: React.FC<AIChatProps> = ({
         <div>
           <div style={S.aiName}>FinWise AI Advisor</div>
           <div style={S.aiStatus}>
-            <span style={S.statusDot} />Powered by Claude · Full context
+            <span style={S.statusDot} />Claude financial agent · Uses your FinWise data
           </div>
         </div>
         <div style={S.contextBadges}>
@@ -225,6 +210,12 @@ export const AIChat: React.FC<AIChatProps> = ({
 
       {/* Messages */}
       <div style={S.messagesPane}>
+        {!historyLoaded && (
+          <div style={{ textAlign: 'center', color: 'var(--text-3)', fontSize: 13, padding: 24 }}>
+            Loading conversation history...
+          </div>
+        )}
+
         {messages.map((msg) => (
           <div key={msg.id} style={{ ...S.msgRow, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             {msg.role === 'assistant' && <div style={S.aiBubbleAvatar}>Ƒ</div>}
@@ -252,8 +243,8 @@ export const AIChat: React.FC<AIChatProps> = ({
         <div ref={bottomRef} />
       </div>
 
-      {/* Quick prompts */}
-      {messages.length <= 2 && (
+      {/* Quick prompts — show when only welcome message is present */}
+      {messages.length <= 1 && historyLoaded && (
         <div style={S.quickPromptsWrap}>
           <div style={S.quickLabel}>Quick questions</div>
           <div style={S.quickPrompts}>
@@ -269,16 +260,16 @@ export const AIChat: React.FC<AIChatProps> = ({
         <textarea
           ref={inputRef} className="fw-chat-textarea"
           style={S.textarea}
-          placeholder="Ask me anything about your finances..."
+          placeholder="Ask about your budget, bills, savings, debt, or investments..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={2} disabled={loading}
+          rows={2} disabled={loading || !historyLoaded}
         />
         <button
-          style={{ ...S.sendBtn, opacity: !input.trim() || loading ? 0.4 : 1 }}
+          style={{ ...S.sendBtn, opacity: !input.trim() || loading || !historyLoaded ? 0.4 : 1 }}
           onClick={() => sendMessage(input)}
-          disabled={!input.trim() || loading}
+          disabled={!input.trim() || loading || !historyLoaded}
         >
           {loading ? '···' : '→'}
         </button>

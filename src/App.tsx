@@ -57,7 +57,7 @@ const App: React.FC = () => {
   const [activeView, setActiveView] = useState<AppView>('advisor');
   const [stage, setStage] = useState<AppStage>('landing');
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('free');
-  const [prefilledPhone, setPrefilledPhone] = useState('');
+  const [prefilledPhone] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup');
 
   const auth = useAuth();
@@ -102,7 +102,6 @@ const App: React.FC = () => {
 
   // ── Stage: Payment ──────────────────────────────────────
   if (!auth.isUnlocked && stage === 'payment') {
-    const meta = TIER_META[selectedTier];
     return (
       <ThemeProvider>
         <AuthGate
@@ -342,6 +341,7 @@ const App: React.FC = () => {
           {/* ── AI Chat ─────────────────────────────────────────── */}
           {activeView === 'chat' && (isLocked('chat') ? <UpgradeWall view="chat" /> :
             <AIChat
+              userId={auth.profile?.phone?.replace(/\s+/g, '') ?? ''}
               profile={profile}
               breakdown={breakdown}
               investmentSummary={investmentSummary}
