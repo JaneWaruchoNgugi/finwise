@@ -1,18 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, CreditCard, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, Settings, ReceiptText, LifeBuoy, BarChart3, ClipboardList, SlidersHorizontal, MessageSquareWarning } from 'lucide-react';
 import { useAdminAuth } from '../../hooks/useAdminAuth';
 import { AdminLogin } from './AdminLogin';
 import { AdminOverview } from './views/AdminOverview';
+import { AdminSupportOverview } from './views/AdminSupportOverview';
 import { AdminUsers } from './views/AdminUsers';
 import { AdminSubscriptions } from './views/AdminSubscriptions';
+import { AdminPayments } from './views/AdminPayments';
 import { AdminSettings } from './views/AdminSettings';
+import { AdminSupportCases } from './views/AdminSupportCases';
+import { AdminSupportInbox } from './views/AdminSupportInbox';
+import { AdminReports } from './views/AdminReports';
+import { AdminAuditLogs } from './views/AdminAuditLogs';
+import { AdminAppSettings } from './views/AdminAppSettings';
+import { AdminChatHealth } from './views/AdminChatHealth';
 
-type AdminView = 'overview' | 'users' | 'subscriptions' | 'settings';
+type AdminView = 'overview' | 'users' | 'payments' | 'subscriptions' | 'supportInbox' | 'support' | 'reports' | 'chatHealth' | 'audit' | 'config' | 'settings';
 
 const NAV: { view: AdminView; label: string; icon: React.ReactNode; roles: string[] }[] = [
   { view: 'overview',      label: 'Overview',      icon: <LayoutDashboard size={20} />, roles: ['super_admin', 'support', 'finance'] },
   { view: 'users',         label: 'Users',         icon: <Users size={20} />,           roles: ['super_admin', 'support'] },
+  { view: 'payments',      label: 'Payments',      icon: <ReceiptText size={20} />,     roles: ['super_admin', 'finance'] },
   { view: 'subscriptions', label: 'Subscriptions', icon: <CreditCard size={20} />,      roles: ['super_admin', 'finance'] },
+  { view: 'supportInbox',  label: 'Support Chats', icon: <LifeBuoy size={20} />,        roles: ['super_admin', 'support'] },
+  { view: 'support',       label: 'Support Cases', icon: <LifeBuoy size={20} />,        roles: ['super_admin', 'support'] },
+  { view: 'reports',       label: 'Reports',       icon: <BarChart3 size={20} />,       roles: ['super_admin', 'finance'] },
+  { view: 'chatHealth',    label: 'Chat Health',   icon: <MessageSquareWarning size={20} />, roles: ['super_admin'] },
+  { view: 'audit',         label: 'Audit Logs',    icon: <ClipboardList size={20} />,   roles: ['super_admin'] },
+  { view: 'config',        label: 'App Config',    icon: <SlidersHorizontal size={20} />, roles: ['super_admin'] },
   { view: 'settings',      label: 'Settings',      icon: <Settings size={20} />,        roles: ['super_admin'] },
 ];
 
@@ -73,10 +88,17 @@ export const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {view === 'overview'      && <AdminOverview />}
-        {view === 'users'         && <AdminUsers canEdit={admin.role === 'super_admin'} />}
+        {view === 'overview'      && (admin.role === 'support' ? <AdminSupportOverview /> : <AdminOverview />)}
+        {view === 'users'         && <AdminUsers canEdit={admin.role === 'super_admin'} admin={admin} />}
+        {view === 'payments'      && <AdminPayments />}
         {view === 'subscriptions' && <AdminSubscriptions />}
-        {view === 'settings'      && <AdminSettings />}
+        {view === 'supportInbox'  && <AdminSupportInbox admin={admin} />}
+        {view === 'support'       && <AdminSupportCases admin={admin} />}
+        {view === 'reports'       && <AdminReports />}
+        {view === 'chatHealth'    && <AdminChatHealth />}
+        {view === 'audit'         && <AdminAuditLogs />}
+        {view === 'config'        && <AdminAppSettings admin={admin} />}
+        {view === 'settings'      && <AdminSettings admin={admin} />}
       </main>
 
       {/* Mobile Bottom Nav */}

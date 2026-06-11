@@ -62,14 +62,6 @@ SUBSCRIPTION TIERS
    - CSV data exports
    LOCKED: alerts only
 
-4. PLATINUM — KES 999/month
-   - Everything in Gold
-   - Alerts & SOS emergency system
-   - Emergency contact notifications (email, WhatsApp, phone)
-   - Priority support
-   - All future features included
-   LOCKED: nothing — full access
-
 ----------------------------------------------------------------
 PAYMENT
 ----------------------------------------------------------------

@@ -4,7 +4,7 @@ import { db } from './firebase';
 const getUid = (): string | null => {
   try {
     const p = JSON.parse(localStorage.getItem('finwise_auth_profile') || 'null');
-    return p?.phone?.replace(/\s+/g, '') ?? null;
+    return p?.uid || p?.phone?.replace(/\s+/g, '') || null;
   } catch { return null; }
 };
 
@@ -42,7 +42,11 @@ export const syncDoc = async (name: string, data: object) => {
   const uid = getUid();
   if (!uid) { console.warn('syncDoc: no uid, skipping', name); return; }
   try {
-    await setDoc(doc(db, 'users', uid, 'data', name), clean(data));
+    const cleaned = clean(data);
+    await setDoc(doc(db, 'users', uid, 'data', name), cleaned);
+    if (name === 'financialProfile') {
+      await setDoc(doc(db, 'users', uid, 'data', 'profile'), cleaned);
+    }
   } catch (e) {
     console.error(`syncDoc(${name}) failed:`, e);
   }

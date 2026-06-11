@@ -19,7 +19,7 @@ const PLANS: SubscriptionPlan[] = [
   {
     tier: 'silver',
     name: 'Silver',
-    price: 299,
+    price: 10,
     color: '#94A3B8',
     icon: '◈',
     features: [
@@ -34,30 +34,17 @@ const PLANS: SubscriptionPlan[] = [
   {
     tier: 'gold',
     name: 'Gold',
-    price: 599,
+    price: 10,
     color: '#D97706',
     icon: '◉',
     features: [
       'Everything in Silver',
-      'Investment portfolio (SACCO, MMF, stocks…)',
+      'Investment portfolio (SACCO, MMF, stocks...)',
       'Spending insights & analytics',
       'AI Chat financial advisor',
-      'CSV data exports',
-    ],
-    lockedViews: ['alerts'],
-  },
-  {
-    tier: 'platinum',
-    name: 'Platinum',
-    price: 999,
-    color: '#8B5CF6',
-    icon: '✦',
-    features: [
-      'Everything in Gold',
       'Alerts & SOS emergency system',
-      'Emergency contact notifications',
       'Priority support',
-      'All future features included',
+      'CSV data exports',
     ],
     lockedViews: [],
   },

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { collection, query, orderBy, limit, getDocs, doc, setDoc } from 'firebase/firestore';
+import { addDoc, collection, query, orderBy, limit, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, functions } from '../lib/firebase';
 import type {
   ChatMessage, FinancialProfile, MonthlyBreakdown, InvestmentSummary,
@@ -44,6 +44,18 @@ type CallableFn = (data: {
 
 const chatWithAdvisor = httpsCallable(functions, 'chatWithAdvisor') as unknown as CallableFn;
 
+const logChatError = async (payload: { userId: string; stage: string; message: string; code?: string; prompt?: string }) => {
+  try {
+    await addDoc(collection(db, 'chatErrors'), {
+      ...payload,
+      createdAt: new Date().toISOString(),
+      resolved: false,
+    });
+  } catch {
+    // Best effort only. Users should still get the local fallback.
+  }
+};
+
 
 export const AIChat: React.FC<AIChatProps> = ({
   userId,
@@ -83,8 +95,8 @@ export const AIChat: React.FC<AIChatProps> = ({
         if (!snap.empty) {
           setMessages(snap.docs.map(d => d.data() as ChatMessage));
         }
-      } catch {
-        // Firestore unavailable — welcome message stays
+      } catch (err: any) {
+        await logChatError({ userId, stage: 'load_history', message: err?.message || 'Failed to load chat history', code: err?.code });
       } finally {
         setLoaded(true);
       }
@@ -157,6 +169,7 @@ Claude is unavailable right now, so I used the built-in FinWise advisor instead.
         ]);
       }
 
+      await logChatError({ userId, stage: 'advisor_response', message: err?.message || 'Claude is unavailable. Used local advisor fallback.', code: err?.code, prompt: text.trim() });
       setMessages(prev => [...prev, fallbackMsg]);
       setError(err?.message || 'Claude is unavailable. Used local advisor fallback.');
     } finally {

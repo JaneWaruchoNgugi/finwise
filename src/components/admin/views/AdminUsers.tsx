@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
-import type { UserProfile, SubscriptionTier } from '../../../types';
+import type { AdminUser, UserProfile, SubscriptionTier } from '../../../types';
 import { UserDetailDrawer } from './UserDetailDrawer';
 
 const TIERS: SubscriptionTier[] = ['free', 'silver', 'gold', 'platinum'];
@@ -11,7 +11,7 @@ const TIER_COLOR: Record<SubscriptionTier, string> = {
 
 interface UserRow extends UserProfile { uid: string; }
 
-export const AdminUsers: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
+export const AdminUsers: React.FC<{ canEdit: boolean; admin: AdminUser }> = ({ canEdit, admin }) => {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -81,6 +81,7 @@ export const AdminUsers: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           name={selected.name}
           blacklisted={selected.blacklisted}
           isSuperAdmin={canEdit}
+          admin={admin}
           onClose={() => setSelected(null)}
           onDeleted={(uid) => setUsers(prev => prev.filter(u => u.uid !== uid))}
           onBlacklistToggled={(uid, blacklisted) => {

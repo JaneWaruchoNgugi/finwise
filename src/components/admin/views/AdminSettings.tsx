@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { addDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import type { AdminUser, AdminRole } from '../../../types';
 import { useAdminAuth } from '../../../hooks/useAdminAuth';
@@ -8,7 +8,7 @@ const ROLE_COLOR: Record<AdminRole, string> = {
   super_admin: '#A78BFA', support: '#34D399', finance: '#60A5FA',
 };
 
-export const AdminSettings: React.FC = () => {
+export const AdminSettings: React.FC<{ admin: AdminUser }> = ({ admin }) => {
   const { createAdmin, deleteAdmin } = useAdminAuth();
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [form, setForm] = useState({ email: '', password: '', role: 'support' as AdminRole });
@@ -23,6 +23,7 @@ export const AdminSettings: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     await createAdmin(form.email, form.password, form.role);
+    await addDoc(collection(db, 'auditLogs'), { action: 'admin_created', actorEmail: admin.email, actorRole: admin.role, targetType: 'admin', targetId: form.email, summary: `Created ${form.role} admin`, createdAt: new Date().toISOString() });
     setMsg('Admin created.');
     setForm({ email: '', password: '', role: 'support' });
     load();
@@ -31,6 +32,7 @@ export const AdminSettings: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this admin?')) return;
     await deleteAdmin(id);
+    await addDoc(collection(db, 'auditLogs'), { action: 'admin_removed', actorEmail: admin.email, actorRole: admin.role, targetType: 'admin', targetId: id, summary: 'Removed admin account', createdAt: new Date().toISOString() });
     load();
   };
 

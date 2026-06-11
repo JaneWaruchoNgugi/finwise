@@ -8,35 +8,46 @@ interface PaymentGateProps {
   tierPrice: number;
   tierColor: string;
   userId: string;
+  userPhone: string;
   tier: SubscriptionTier;
-  onPaymentComplete: (phone: string) => void;
+  onPaymentComplete: () => void;
   onBack: () => void;
 }
 
-type Step = 'method' | 'mpesa_phone' | 'awaiting' | 'success' | 'failed' | 'card';
+type Step = 'method' | 'awaiting' | 'success' | 'failed' | 'card';
 
 const fns = getFunctions(app);
 const initiateStkPush   = httpsCallable(fns, 'initiateStkPush');
 const getPaymentStatus  = httpsCallable(fns, 'getPaymentStatus');
+const confirmSubscriptionPayment = httpsCallable(fns, 'confirmSubscriptionPayment');
 
 const TIER_META: Record<SubscriptionTier, { name: string; color: string; icon: string; features: string[] }> = {
   free:     { name: 'Free',     color: '#9BAAC4', icon: '◎', features: [] },
   silver:   { name: 'Silver',   color: '#C0C0C0', icon: '◈', features: ['Bills & recurring payments', 'Savings goals', 'Emergency fund', 'Net Worth'] },
-  gold:     { name: 'Gold',     color: '#C9A84C', icon: '◉', features: ['Everything in Silver', 'Investments', 'Insights', 'AI Chat', 'CSV exports'] },
-  platinum: { name: 'Platinum', color: '#A78BFA', icon: '✦', features: ['Everything in Gold', 'Alerts & SOS', 'Emergency contacts', 'Priority support'] },
+  gold:     { name: 'Gold',     color: '#C9A84C', icon: '◉', features: ['Everything in Silver', 'Investments', 'Insights', 'AI Chat', 'Alerts & SOS', 'Priority support', 'CSV exports'] },
+  platinum: { name: 'Platinum', color: '#A78BFA', icon: '✦', features: ['Legacy Platinum access', 'Everything in Gold', 'Priority support'] },
 };
 
-const ALL_TIERS: SubscriptionTier[] = ['free', 'silver', 'gold', 'platinum'];
+const SALE_TIERS: SubscriptionTier[] = ['silver', 'gold'];
 
 export const PaymentGate: React.FC<PaymentGateProps> = ({
-  tierName, tierPrice, tierColor, userId, tier, onPaymentComplete, onBack,
+  tierName, tierPrice, tierColor, userId, userPhone, tier, onPaymentComplete, onBack,
 }) => {
   const [step, setStep] = useState<Step>('method');
-  const [phone, setPhone] = useState('');
   const [checkoutId, setCheckoutId] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    setStep('method');
+    setCheckoutId('');
+    setError('');
+    setLoading(false);
+    setConfirming(false);
+  }, [tier, userId, userPhone]);
 
   // Poll payment status every 3s while awaiting
   useEffect(() => {
@@ -44,7 +55,7 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
       pollRef.current = setInterval(async () => {
         try {
           const res = await getPaymentStatus({ checkoutId }) as { data: { status: string } };
-          if (res.data.status === 'success') {
+          if (res.data.status === 'success' || res.data.status === 'paid') {
             clearInterval(pollRef.current!);
             setStep('success');
           } else if (res.data.status === 'failed') {
@@ -57,11 +68,26 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [step, checkoutId]);
 
+  const handleConfirmComplete = async () => {
+    if (!checkoutId) return;
+    setConfirming(true);
+    setError('');
+    try {
+      const res = await confirmSubscriptionPayment({ checkoutId, userId, tier }) as { data: { status: string; message?: string } };
+      if (res.data.status === 'success' || res.data.status === 'paid') setStep('success');
+      else setError(res.data.message || 'Payment is still awaiting provider confirmation.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Payment confirmation failed. Try again after a few seconds.');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
   const handleSendStk = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await initiateStkPush({ phone, amount: tierPrice, tier, userId }) as { data: { checkoutId: string } };
+      const res = await initiateStkPush({ phone: userPhone, amount: tierPrice, tier, userId, name: 'FinWise ' + tier }) as { data: { checkoutId: string } };
       setCheckoutId(res.data.checkoutId);
       setStep('awaiting');
     } catch (e: unknown) {
@@ -132,12 +158,12 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
               <div style={S.title}>Complete your subscription</div>
               <p style={S.sub}>Choose how you'd like to pay for <strong style={{ color: tierColor }}>{tierName}</strong></p>
               <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:20 }}>
-                <button className="pg-method" style={S.methodBtn} onClick={() => setStep('mpesa_phone')}>
+                <button className="pg-method" style={S.methodBtn} onClick={handleSendStk} disabled={loading || !userPhone}>
                   <div style={{ display:'flex', alignItems:'center', gap:14 }}>
                     <span style={{ fontSize:26 }}>📱</span>
                     <div>
                       <div style={S.methodName}>M-Pesa</div>
-                      <div style={S.methodDesc}>STK Push — pay from your phone</div>
+                      <div style={S.methodDesc}>{loading ? 'Sending STK request...' : 'STK Push to ' + userPhone}</div>
                     </div>
                   </div>
                   <span style={{ fontSize:18, color:'#D97706' }}>→</span>
@@ -153,33 +179,8 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
                   <span style={{ fontSize:18, color:'#D97706' }}>→</span>
                 </button>
               </div>
-              <div style={{ fontSize:12, color:'#9CA3AF', textAlign:'center' }}>🔐 All payments are encrypted and secure</div>
-            </div>
-          )}
-
-          {/* M-Pesa phone entry */}
-          {step === 'mpesa_phone' && (
-            <div className="pg-in">
-              <div style={{ fontSize:40, marginBottom:12 }}>📱</div>
-              <div style={S.title}>M-Pesa Payment</div>
-              <p style={S.sub}>We'll send an STK push to your phone to authorise <strong style={{ color:'#D97706' }}>KES {tierPrice.toLocaleString()}</strong></p>
-              <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:20 }}>
-                <label style={S.label}>M-Pesa Phone Number</label>
-                <input
-                  style={S.input} type="tel" placeholder="e.g. 0712 345 678"
-                  value={phone} autoFocus
-                  onChange={e => setPhone(e.target.value.replace(/[^\d\s+]/g, ''))}
-                  onKeyDown={e => e.key === 'Enter' && phone.trim().length >= 9 && handleSendStk()}
-                />
-              </div>
               {error && <div style={S.err}>{error}</div>}
-              <button className="pg-btn" style={{ ...S.btn, opacity: phone.trim().length >= 9 && !loading ? 1 : 0.5 }}
-                disabled={phone.trim().length < 9 || loading} onClick={handleSendStk}>
-                {loading ? 'Sending…' : 'Send Payment Request →'}
-              </button>
-              <div style={{ fontSize:12, color:'#9CA3AF', marginTop:14, lineHeight:1.6 }}>
-                You'll receive a prompt on your phone. Enter your M-Pesa PIN there — not here.
-              </div>
+              <div style={{ fontSize:12, color:'#9CA3AF', textAlign:'center' }}>🔐 All payments are encrypted and secure</div>
             </div>
           )}
 
@@ -189,13 +190,17 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
               <div className="spinner" />
               <div style={S.title}>Awaiting Payment</div>
               <p style={S.sub}>
-                Check your phone <strong>{phone}</strong> and enter your M-Pesa PIN to complete the payment of{' '}
+                Check your phone <strong>{userPhone}</strong> and enter your M-Pesa PIN to complete the payment of{' '}
                 <strong style={{ color:'#D97706' }}>KES {tierPrice.toLocaleString()}</strong>
               </p>
               <div style={{ display:'flex', gap:6, alignItems:'center' }}>
                 <div className="pulse-dot" style={{ width:8, height:8, borderRadius:'50%', background:'#C9A84C' }} />
                 <span style={{ fontSize:13, color:'#9CA3AF' }}>Waiting for confirmation…</span>
               </div>
+              {error && <div style={S.err}>{error}</div>}
+              <button className="pg-btn" style={{ ...S.btn, maxWidth: 260 }} onClick={handleConfirmComplete} disabled={confirming}>
+                {confirming ? 'Confirming...' : 'I have completed payment'}
+              </button>
               <button style={{ ...S.back, marginTop:8 }} onClick={() => setStep('failed')}>Cancel</button>
             </div>
           )}
@@ -206,8 +211,8 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
               <div style={{ fontSize:48, marginBottom:12 }}>❌</div>
               <div style={S.title}>Payment Failed</div>
               <p style={S.sub}>The payment was not completed. You can try again.</p>
-              <button className="pg-btn" style={S.btn} onClick={() => { setStep('mpesa_phone'); setError(''); }}>
-                Try Again
+              <button className="pg-btn" style={S.btn} onClick={handleSendStk} disabled={loading || !userPhone}>
+                {loading ? 'Sending...' : 'Try Again'}
               </button>
             </div>
           )}
@@ -226,7 +231,7 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
           {step === 'success' && (
             <div className="pg-in" style={{ display:'flex', flexDirection:'column', gap:24 }}>
               <div style={{ display:'flex', justifyContent:'flex-end' }}>
-                <button onClick={() => onPaymentComplete(phone)} style={{ background:'var(--bg-surface,#f3f4f6)', border:'1px solid var(--border,#e5e7eb)', borderRadius:8, width:32, height:32, cursor:'pointer', fontSize:16, color:'#6B7280', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+                <button onClick={onPaymentComplete} style={{ background:'var(--bg-surface,#f3f4f6)', border:'1px solid var(--border,#e5e7eb)', borderRadius:8, width:32, height:32, cursor:'pointer', fontSize:16, color:'#6B7280', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
               </div>
               <div style={{ textAlign:'center' }}>
                 <div style={{ fontSize:52, marginBottom:8 }}>🎉</div>
@@ -257,9 +262,9 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
               <div>
                 <div style={{ fontSize:12, color:'var(--text-3)', marginBottom:10, fontWeight:600 }}>OTHER PLANS</div>
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {ALL_TIERS.filter(t => t !== tier && t !== 'free').map(t => {
+                  {SALE_TIERS.filter(t => t !== tier).map(t => {
                     const m = TIER_META[t];
-                    const prices: Record<SubscriptionTier, number> = { free:0, silver:299, gold:599, platinum:999 };
+                    const prices: Record<SubscriptionTier, number> = { free:0, silver:10, gold:10, platinum:999 };
                     return (
                       <div key={t} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 14px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -273,7 +278,7 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
                 </div>
               </div>
 
-              <button className="pg-btn" style={S.btn} onClick={() => onPaymentComplete(phone)}>
+              <button className="pg-btn" style={S.btn} onClick={onPaymentComplete}>
                 Go to Dashboard →
               </button>
             </div>

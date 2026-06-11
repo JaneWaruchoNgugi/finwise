@@ -32,6 +32,7 @@ import { PaymentGate }      from './components/PaymentGate';
 import { UpgradePage }      from './components/UpgradePage';
 import { ProfilePage }      from './components/ProfilePage';
 import { AdminPanel }       from './components/admin/AdminPanel';
+import { SupportChatWidget } from './components/SupportChatWidget';
 
 import {
   exportExpensesToCSV,
@@ -41,16 +42,16 @@ import {
 
 const TIER_META: Record<SubscriptionTier, { name: string; price: number; color: string }> = {
   free:     { name: 'Free',     price: 0,   color: '#9BAAC4' },
-  silver:   { name: 'Silver',   price: 299, color: '#C0C0C0' },
-  gold:     { name: 'Gold',     price: 599, color: '#C9A84C' },
+  silver:   { name: 'Silver',   price: 10, color: '#C0C0C0' },
+  gold:     { name: 'Gold',     price: 10, color: '#C9A84C' },
   platinum: { name: 'Platinum', price: 999, color: '#A78BFA' },
 };
 
 type AppStage = 'landing' | 'payment' | 'auth' | 'app';
 
 const App: React.FC = () => {
-  // ── Hidden admin route: /?__admin ───────────────────────
-  if (window.location.search.includes('__admin')) {
+  // ── Hidden admin route: /admin or /?__admin ───────────────────────
+  if (window.location.search.includes('__admin') || window.location.pathname === '/admin') {
     return <ThemeProvider><AdminPanel /></ThemeProvider>;
   }
 
@@ -138,6 +139,27 @@ const App: React.FC = () => {
 
   // ── Stage: App ──────────────────────────────────────────
   const userTier: SubscriptionTier = auth.profile?.tier ?? 'free';
+  const subscriptionNotice = (() => {
+    const profile = auth.profile;
+    if (!profile) return null;
+    if (profile.subscriptionStatus === 'expired') {
+      return 'Your subscription expired. Renew to unlock premium features again.';
+    }
+    if (profile.tier !== 'free') {
+      const expiry = profile.subscriptionExpiresAt ? Date.parse(profile.subscriptionExpiresAt) : 0;
+      const start = profile.subscriptionStart ? Date.parse(profile.subscriptionStart) : 0;
+      const daysLeft = expiry
+        ? Math.ceil((expiry - Date.now()) / (24 * 60 * 60 * 1000))
+        : start
+          ? 30 - Math.floor((Date.now() - start) / (24 * 60 * 60 * 1000))
+          : null;
+      if (daysLeft !== null) {
+        if (daysLeft <= 0) return 'Your subscription has ended. Renew to continue premium access.';
+        if (daysLeft <= 5) return `Your ${profile.tier} plan ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Renew soon.`;
+      }
+    }
+    return null;
+  })();
   const lockedViews = PLAN_LOCKED_VIEWS[userTier] ?? [];
   const isLocked = (view: AppView) => lockedViews.includes(view);
 
@@ -164,13 +186,16 @@ const App: React.FC = () => {
       {stage === 'payment' && auth.isUnlocked && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 500 }}>
           <PaymentGate
+            key={selectedTier + '-' + (auth.profile?.phone ?? '')}
             tierName={TIER_META[selectedTier].name}
             tierPrice={TIER_META[selectedTier].price}
             tierColor={TIER_META[selectedTier].color}
-            userId={auth.profile?.phone?.replace(/\s+/g, '') ?? ''}
+            userId={auth.profile?.uid || auth.profile?.phone?.replace(/\s+/g, '') || ''}
+            userPhone={auth.profile?.phone ?? auth.profile?.uid ?? ''}
             tier={selectedTier}
-            onPaymentComplete={() => {
-              auth.updateTier(selectedTier);
+            onPaymentComplete={async () => {
+              const activated = await auth.updateTier(selectedTier);
+              if (!activated) return;
               setStage('app');
               setActiveView('dashboard');
             }}
@@ -190,6 +215,8 @@ const App: React.FC = () => {
         onExportInvestments={() => exportInvestmentsToCSV(investments)}
         onExportNetWorth={() => exportNetWorthToCSV(netWorth.items)}
         userTier={userTier}
+        subscriptionNotice={subscriptionNotice}
+        onOpenUpgrade={() => setActiveView('upgrade')}
       />
 
       <main className="main-content">
@@ -360,6 +387,8 @@ const App: React.FC = () => {
           {/* ── Alerts & SOS ────────────────────────────────────── */}
           {activeView === 'alerts' && (isLocked('alerts') ? <UpgradeWall view="alerts" /> :
             <AlertsPanel
+              userId={auth.profile?.uid || auth.profile?.phone?.replace(/\s+/g, '') || ''}
+              userTier={userTier}
               contact={alerts.contact}
               log={alerts.log}
               hasContact={alerts.hasContact}
@@ -395,7 +424,7 @@ const App: React.FC = () => {
           {activeView === 'profile' && auth.profile && (
             <ProfilePage
               profile={auth.profile}
-              uid={auth.profile.phone.replace(/\s+/g, '')}
+              uid={auth.profile.uid || auth.profile.phone.replace(/\s+/g, '')}
               onNavigate={setActiveView}
             />
           )}
@@ -403,12 +432,12 @@ const App: React.FC = () => {
         </div>
       </main>
 
+      {auth.profile && <SupportChatWidget profile={auth.profile} />}
+
       <footer className="app-footer">
         <span>FinWise © {new Date().getFullYear()}</span>
         <span className="footer-dot">·</span>
         <span>Smart money management for every Kenyan</span>
-        <span className="footer-dot">·</span>
-        <span style={{ color: '#C9A84C' }}>Your data stays on this device</span>
       </footer>
     </div>
     </ThemeProvider>

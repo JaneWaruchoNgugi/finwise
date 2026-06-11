@@ -1,8 +1,10 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Expense, FinancialProfile } from '../types';
 import { generateId, getCurrentMonth, filterByMonth } from '../utils/expenses';
 import { calculateMonthlyBreakdown, getSpendingInsight, getUnnecessaryWarnings } from '../utils/calculations';
 import { syncCollection, syncDoc, deleteFromCollection } from '../lib/sync';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 const STORAGE_KEY = 'finwise_expenses';
 const PROFILE_KEY = 'finwise_profile';
@@ -15,10 +17,51 @@ const loadProfile = (): FinancialProfile => {
   catch { return { monthlyIncome: 0, currency: 'KES' }; }
 };
 
+const getUid = (): string | null => {
+  try {
+    const p = JSON.parse(localStorage.getItem('finwise_auth_profile') || 'null');
+    return p?.uid || p?.phone?.replace(/\s+/g, '') || null;
+  } catch { return null; }
+};
+
 export const useExpenses = (billsTotal = 0, goalsTotal = 0) => {
   const [expenses, setExpenses] = useState<Expense[]>(loadExpenses);
   const [profile, setProfile] = useState<FinancialProfile>(loadProfile);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+
+  useEffect(() => {
+    const uid = getUid();
+    if (!uid) return;
+
+    (async () => {
+      try {
+        const [expenseSnap, profileSnap, legacyProfileSnap] = await Promise.all([
+          getDocs(collection(db, 'users', uid, 'expenses')),
+          getDoc(doc(db, 'users', uid, 'data', 'financialProfile')),
+          getDoc(doc(db, 'users', uid, 'data', 'profile')),
+        ]);
+
+        if (!expenseSnap.empty) {
+          const remoteExpenses = expenseSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Expense);
+          setExpenses(remoteExpenses);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteExpenses));
+        }
+
+        const remoteProfile = profileSnap.exists() ? profileSnap.data() : legacyProfileSnap.exists() ? legacyProfileSnap.data() : null;
+        if (remoteProfile) {
+          const nextProfile = {
+            monthlyIncome: Number(remoteProfile.monthlyIncome || 0),
+            currency: String(remoteProfile.currency || 'KES'),
+            incomeStreams: remoteProfile.incomeStreams,
+          } as FinancialProfile;
+          setProfile(nextProfile);
+          localStorage.setItem(PROFILE_KEY, JSON.stringify(nextProfile));
+        }
+      } catch (e) {
+        console.error('Failed to load expenses from Firebase:', e);
+      }
+    })();
+  }, []);
 
   const saveProfile = (updated: FinancialProfile) => {
     setProfile(updated);

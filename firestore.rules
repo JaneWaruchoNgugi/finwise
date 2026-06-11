@@ -17,16 +17,43 @@ service cloud.firestore {
       }
     }
 
-    // Admin accounts — reads allowed for admin login, no client writes
+    // Admin accounts — client-managed because this app does not use Firebase Auth
     match /admins/{adminId} {
-      allow read: if true;
-      allow write: if false;
+      allow read, write: if true;
     }
 
     // Payments — reads allowed for status polling, writes only via Cloud Functions
     match /payments/{paymentId} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // Admin support workflow data
+    match /supportCases/{caseId} {
+      allow read, write: if true;
+    }
+
+    // User-to-support chat threads
+    match /supportThreads/{threadId} {
+      allow read, write: if true;
+      match /messages/{messageId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Chat reliability logs
+    match /chatErrors/{errorId} {
+      allow read, write: if true;
+    }
+
+    // Admin audit trail
+    match /auditLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Business-level app configuration
+    match /appConfig/{configId} {
+      allow read, write: if true;
     }
   }
 }

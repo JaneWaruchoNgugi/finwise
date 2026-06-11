@@ -167,7 +167,6 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
                 {tier} plan
               </div>
             )}
-            <p style={S.sub}>All data stays on this device</p>
             <div style={S.fields}>
               <div style={S.field}>
                 <label style={S.label}>Your Name</label>

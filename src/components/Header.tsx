@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { BarChart3, Bell, Bot, CreditCard, Goal, Home, Landmark, LineChart, PiggyBank, Shield, UserCircle, WalletCards } from 'lucide-react';
 import type { AppView } from '../types';
 import type { SubscriptionTier } from '../types';
 import {type Theme, ThemeContext, useTheme} from "../hooks/NavItems.ts";
@@ -39,30 +40,31 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 interface NavItem {
   id: AppView;
   label: string;
-  icon: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   group: 'main' | 'plan' | 'intel';
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard',   label: 'Overview',   icon: '◧',  group: 'main' },
-  { id: 'advisor',     label: 'Advisor',    icon: '◆',  group: 'main' },
-  { id: 'expenses',    label: 'Expenses',   icon: '◎',  group: 'main' },
-  { id: 'investments', label: 'Invest',     icon: '◈',  group: 'main' },
-  { id: 'goals',       label: 'Goals',      icon: '◉',  group: 'plan' },
-  { id: 'bills',       label: 'Bills',      icon: '◫',  group: 'plan' },
-  { id: 'networth',    label: 'Net Worth',  icon: '◐',  group: 'plan' },
-  { id: 'emergency',   label: 'Emergency',  icon: '⬡',  group: 'plan' },
-  { id: 'insights',    label: 'Insights',   icon: '◑',  group: 'intel' },
-  { id: 'chat',        label: 'AI Chat',    icon: '✦',  group: 'intel' },
-  { id: 'alerts',      label: 'Alerts',     icon: '◬',  group: 'intel' },
-  { id: 'profile',     label: 'Profile',    icon: '◯',  group: 'intel' },
-  { id: 'upgrade',     label: 'Upgrade',    icon: '⭐', group: 'intel' },
+  { id: 'dashboard',   label: 'Overview',   icon: Home,         group: 'main' },
+  { id: 'advisor',     label: 'Advisor',    icon: Home,         group: 'main' },
+  { id: 'expenses',    label: 'Expenses',   icon: WalletCards,  group: 'main' },
+  { id: 'investments', label: 'Invest',     icon: LineChart,    group: 'main' },
+  { id: 'goals',       label: 'Goals',      icon: Goal,         group: 'plan' },
+  { id: 'bills',       label: 'Bills',      icon: CreditCard,   group: 'plan' },
+  { id: 'networth',    label: 'Net Worth',  icon: Landmark,     group: 'plan' },
+  { id: 'emergency',   label: 'Emergency',  icon: Shield,       group: 'plan' },
+  { id: 'insights',    label: 'Insights',   icon: BarChart3,    group: 'intel' },
+  { id: 'chat',        label: 'AI Chat',    icon: Bot,          group: 'intel' },
+  { id: 'alerts',      label: 'Alerts',     icon: Bell,         group: 'intel' },
+  { id: 'profile',     label: 'Profile',    icon: UserCircle,   group: 'intel' },
+  { id: 'upgrade',     label: 'Upgrade',    icon: PiggyBank,    group: 'intel' },
 ];
 
 // Bottom bar primary tabs (mobile)
-const PRIMARY_MOBILE: AppView[] = ['dashboard', 'expenses', 'advisor', 'goals', 'investments'];
+const FREE_MOBILE: AppView[] = ['advisor', 'expenses'];
+const PAID_MOBILE: AppView[] = ['advisor', 'investments', 'chat', 'expenses', 'goals'];
 // MORE_ITEMS is commented out because the More sheet is currently disabled
-// const MORE_ITEMS = NAV_ITEMS.filter(n => !PRIMARY_MOBILE.includes(n.id));
+// const MORE_ITEMS = NAV_ITEMS.filter(n => !PAID_MOBILE.includes(n.id));
 
 const SCORE_COLOR: Record<string, string> = {
   excellent: 'var(--score-excellent)',
@@ -87,6 +89,8 @@ interface HeaderProps {
   onExportInvestments?:() => void;
   onExportNetWorth?:   () => void;
   userTier?:           SubscriptionTier;
+  subscriptionNotice?: string | null;
+  onOpenUpgrade?:      () => void;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -104,6 +108,8 @@ export const Header: React.FC<HeaderProps> = ({
                                                 onExportInvestments,
                                                 onExportNetWorth,
                                                 userTier = 'free',
+                                                subscriptionNotice = null,
+                                                onOpenUpgrade,
                                               }) => {
   const { theme, toggleTheme } = useTheme();
   const scoreColor = SCORE_COLOR[scoreLevel] ?? 'var(--text-3)';
@@ -122,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { mainItems, planItems, intelItems } = useMemo(() => ({
     mainItems:  NAV_ITEMS.filter(n => n.group === 'main' && n.id !== 'upgrade' && isVisible(n.id)),
     planItems:  NAV_ITEMS.filter(n => n.group === 'plan' && n.id !== 'upgrade' && isVisible(n.id)),
-    intelItems: NAV_ITEMS.filter(n => n.group === 'intel' && (n.id !== 'upgrade' || userTier !== 'platinum') && isVisible(n.id)),
+    intelItems: NAV_ITEMS.filter(n => n.group === 'intel' && (n.id !== 'upgrade' || userTier === 'free' || userTier === 'silver') && isVisible(n.id)),
   }), [userTier, lockedViews]);
 
   // Scroll effect
@@ -263,6 +269,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {group.items.map((item: NavItem) => {
                     const isActive = activeView === item.id;
                     const isUpgrade = item.id === 'upgrade';
+                    const Icon = item.icon;
                     return (
                         <button
                             key={item.id}
@@ -279,7 +286,7 @@ export const Header: React.FC<HeaderProps> = ({
                             } : undefined}
                         >
                           {isActive && !isUpgrade && <span className="fw-navbtn-pip" aria-hidden="true" />}
-                          <span className="fw-navbtn-icon" aria-hidden="true">{item.icon}</span>
+                          <span className="fw-navbtn-icon" aria-hidden="true"><Icon size={19} strokeWidth={2.2} /></span>
                           <span className="fw-reveal fw-navbtn-label" style={isUpgrade ? { fontWeight: 700 } : undefined}>{item.label}</span>
                           {item.id === 'chat' && (
                               <span className="fw-reveal fw-ai-chip" aria-label="AI feature">AI</span>
@@ -355,6 +362,17 @@ export const Header: React.FC<HeaderProps> = ({
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
 
+            {/* Subscription notice */}
+            <button
+                className={`fw-notice-btn${subscriptionNotice ? ' has-notice' : ''}`}
+                onClick={onOpenUpgrade}
+                title={subscriptionNotice || 'Subscription notifications'}
+                aria-label={subscriptionNotice || 'Subscription notifications'}
+            >
+              <Bell size={16} strokeWidth={2.2} />
+              {subscriptionNotice && <span className="fw-notice-dot" />}
+            </button>
+
             {/* Score ring (topbar) */}
             <div className="fw-tbar-score" style={{ color: scoreColor }}>
               {scoreRing(24)}
@@ -403,16 +421,18 @@ export const Header: React.FC<HeaderProps> = ({
         {/* ══════════ MOBILE BOTTOM NAV ════════════════════════ */}
       <nav className="fw-bottom-nav">
         <div className="fw-bottom-nav-inner">
-          {PRIMARY_MOBILE.filter(id => isVisible(id)).map(id => {
+          {(userTier === 'free' ? FREE_MOBILE : PAID_MOBILE).map(id => {
             const item = NAV_ITEMS.find(n => n.id === id)!;
+            const Icon = item.icon;
+            const isCenter = id === 'chat';
             return (
               <button
                 key={id}
-                className={`fw-tab${activeView === id ? ' active' : ''}`}
+                className={`fw-tab${activeView === id ? ' active' : ''}${isCenter ? ' fw-tab--center' : ''}`}
                 onClick={() => go(id)}
               >
-                <div className="fw-tab-bubble">{item.icon}</div>
-                <span>{item.label}</span>
+                <div className="fw-tab-bubble"><Icon size={18} strokeWidth={2.2} /></div>
+                <span>{id === 'chat' ? 'AI Coach' : id === 'investments' ? 'Invest' : item.label}</span>
               </button>
             );
           })}

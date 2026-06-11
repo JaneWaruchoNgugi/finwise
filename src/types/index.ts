@@ -188,12 +188,18 @@ export interface LiabilityCategoryMeta {
 export type SubscriptionTier = 'free' | 'silver' | 'gold' | 'platinum';
 
 export interface UserProfile {
+  uid?: string;
   name: string;
   phone: string;
   pin: string;
   createdAt: string;
   tier: SubscriptionTier;
   blacklisted?: boolean;
+  subscriptionStatus?: 'active' | 'pending_payment' | 'expired';
+  pendingTier?: SubscriptionTier | null;
+  previousTier?: SubscriptionTier;
+  subscriptionExpiredAt?: string;
+  subscriptionExpiresAt?: string;
   subscriptionStart?: string; // ISO date when paid tier began
 }
 
