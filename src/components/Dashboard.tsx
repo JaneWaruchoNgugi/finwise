@@ -1,5 +1,6 @@
 import React, {type Dispatch, type SetStateAction, useState} from 'react';
-import type {MonthlyBreakdown, SpendingInsight, FinancialProfile, Bill, Goal, Habit, AppView} from '../types';
+import { ArrowRight, Crown, Landmark, Lock, ReceiptText, Shield, Sparkles, Target, TrendingUp } from 'lucide-react';
+import type {MonthlyBreakdown, SpendingInsight, FinancialProfile, Bill, Goal, Habit, AppView, SubscriptionTier} from '../types';
 import { formatCurrency, CATEGORY_META } from '../utils/expenses';
 import { HabitsTracker } from './HabitsTracker';
 
@@ -24,6 +25,9 @@ interface DashboardProps {
   onAddHabit?: (text: string) => void;
   onRemoveHabit?: (id: string) => void;
   onNavigate?: Dispatch<SetStateAction<AppView>>;
+  userTier?: SubscriptionTier;
+  expenseCount?: number;
+  onUpgrade?: (tier: SubscriptionTier) => void;
 }
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -41,6 +45,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   habits = [], habitsCompletedCount = 0, habitsCompletionPct = 0,
   efCurrent = 0, efTarget = 0, efProgressPct = 0,
   onToggleHabit, onAddHabit, onRemoveHabit, onNavigate,
+  userTier = 'free', expenseCount = 0, onUpgrade,
 }) => {
   const [editingIncome, setEditingIncome] = useState(false);
   const [incomeInput, setIncomeInput] = useState(String(profile.monthlyIncome));
@@ -65,9 +70,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const billsOverdue = bills.filter((b) => b.status === 'overdue');
   const activeGoals = goals.filter((g) => !g.completed).slice(0, 3);
   const efColor = efProgressPct >= 80 ? 'var(--green)' : efProgressPct >= 40 ? 'var(--amber)' : 'var(--red)';
+  const shouldShowFreeHook = userTier === 'free' && expenseCount >= 5;
+  const projectedSavings = Math.max(0, Math.round(breakdown.unnecessaryTotal * 0.35));
 
   return (
     <div style={S.container} className="animate-in">
+      <style>{`
+        .dash-action-card:hover { transform: translateY(-2px); border-color: var(--border-acc) !important; box-shadow: 0 14px 34px rgba(10,22,40,0.12) !important; }
+        .dash-action-card:hover .dash-open-chip { color: var(--gold); background: var(--gold-dim); border-color: var(--border-acc); }
+        .dash-action-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+      `}</style>
 
       {/* Setup banner */}
       {profile.monthlyIncome === 0 && (
@@ -138,6 +150,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {shouldShowFreeHook && (
+        <div style={S.freeHookCard}>
+          <div style={S.freeHookIcon}><Sparkles size={22} strokeWidth={2.2} /></div>
+          <div style={S.freeHookBody}>
+            <div style={S.freeHookKicker}>Your spending pattern is ready</div>
+            <div style={S.freeHookTitle}>FinWise found enough data to turn tracking into a plan.</div>
+            <div style={S.freeHookText}>
+              Unlock Silver to plan bills and goals, or Gold to see full AI insights, investment tracking, and emergency alerts.
+              {projectedSavings > 0 && ` You may be able to redirect about ${formatCurrency(projectedSavings, profile.currency)} from lifestyle spending this month.`}
+            </div>
+            <div style={S.freeHookActions}>
+              <button style={S.silverBtn} onClick={() => onUpgrade?.('silver')}><Target size={15} /> Unlock Silver</button>
+              <button style={S.goldBtn} onClick={() => onUpgrade?.('gold')}><Crown size={15} /> Unlock Gold</button>
+            </div>
+          </div>
+          <div style={S.lockedPreviewRail}>
+            {[
+              { icon: Target, label: 'More goals' },
+              { icon: TrendingUp, label: 'Investments' },
+              { icon: Lock, label: 'AI insights' },
+            ].map(item => {
+              const Icon = item.icon;
+              return <div key={item.label} style={S.lockedPreview}><Icon size={15} /> {item.label}</div>;
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Score + categories */}
       <div className="mid-row">
         <div style={{ ...S.scorePanel, background: scoreBg, border: `1px solid ${scoreColor}30` }} className="score-panel-equal">
@@ -190,11 +230,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 3-card preview row: Net Worth, Bills Due, Emergency Fund */}
+      {/* Planning shortcuts */}
       <div className="stats-grid">
-        {/* Net Worth */}
-        <div style={{ ...S.statCard, cursor: onNavigate ? 'pointer' : 'default' }}
-          onClick={() => onNavigate?.('networth')}>
+        <button type="button" className="dash-action-card" style={S.actionCard} onClick={() => onNavigate?.('networth')}>
+          <div style={S.actionTop}>
+            <div style={S.actionIcon}><Landmark size={18} strokeWidth={2.1} /></div>
+            <span className="dash-open-chip" style={S.openChip}>Open <ArrowRight size={12} /></span>
+          </div>
           <div style={S.statLabel}>Net Worth</div>
           <div style={{ ...S.statValue, color: netWorthSummary.netWorth >= 0 ? 'var(--green)' : 'var(--red)', fontSize: 22 }}>
             {formatCurrency(netWorthSummary.netWorth, profile.currency)}
@@ -204,11 +246,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span>·</span>
             <span style={{ color: 'var(--red)' }}>↓ {formatCurrency(netWorthSummary.totalLiabilities, profile.currency)}</span>
           </div>
-        </div>
+        </button>
 
-        {/* Bills */}
-        <div style={{ ...S.statCard, cursor: onNavigate ? 'pointer' : 'default' }}
-          onClick={() => onNavigate?.('bills')}>
+        <button type="button" className="dash-action-card" style={S.actionCard} onClick={() => onNavigate?.('bills')}>
+          <div style={S.actionTop}>
+            <div style={S.actionIcon}><ReceiptText size={18} strokeWidth={2.1} /></div>
+            <span className="dash-open-chip" style={S.openChip}>Open <ArrowRight size={12} /></span>
+          </div>
           <div style={S.statLabel}>Bills Due</div>
           <div style={{ ...S.statValue, color: billsOverdue.length > 0 ? 'var(--red)' : 'var(--amber)', fontSize: 22 }}>
             {formatCurrency(billsDue.reduce((s, b) => s + b.amount, 0), profile.currency)}
@@ -218,11 +262,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
               ? <span style={{ color: 'var(--red)' }}>⚠ {billsOverdue.length} overdue!</span>
               : `${billsDue.length} unpaid this month`}
           </div>
-        </div>
+        </button>
 
-        {/* Emergency Fund */}
-        <div style={{ ...S.statCard, cursor: onNavigate ? 'pointer' : 'default' }}
-          onClick={() => onNavigate?.('emergency')}>
+        <button type="button" className="dash-action-card" style={S.actionCard} onClick={() => onNavigate?.('emergency')}>
+          <div style={S.actionTop}>
+            <div style={S.actionIcon}><Shield size={18} strokeWidth={2.1} /></div>
+            <span className="dash-open-chip" style={S.openChip}>Open <ArrowRight size={12} /></span>
+          </div>
           <div style={S.statLabel}>Emergency Fund</div>
           <div style={{ ...S.statValue, color: efColor, fontSize: 22 }}>{efProgressPct}%</div>
           <div style={S.progressBar}>
@@ -231,17 +277,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
             {formatCurrency(efCurrent, profile.currency)} of {formatCurrency(efTarget, profile.currency)}
           </div>
-        </div>
+        </button>
 
-        {/* Goals */}
-        <div style={{ ...S.statCard, cursor: onNavigate ? 'pointer' : 'default' }}
-          onClick={() => onNavigate?.('goals')}>
+        <button type="button" className="dash-action-card" style={S.actionCard} onClick={() => onNavigate?.('goals')}>
+          <div style={S.actionTop}>
+            <div style={S.actionIcon}><Target size={18} strokeWidth={2.1} /></div>
+            <span className="dash-open-chip" style={S.openChip}>Open <ArrowRight size={12} /></span>
+          </div>
           <div style={S.statLabel}>Active Goals</div>
           <div style={{ ...S.statValue, color: 'var(--gold)', fontSize: 22 }}>{goals.filter((g) => !g.completed).length}</div>
           <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>
             {goals.filter((g) => g.completed).length} completed · {goals.length} total
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Goals progress preview */}
@@ -308,10 +356,25 @@ const S: Record<string, React.CSSProperties> = {
   setupText: { flex: 1, fontSize: 14, color: 'var(--gold-l)' },
   setupBtn: { padding: '8px 18px', background: 'var(--gold)', color: '#0A1628', borderRadius: 8, fontWeight: 700, fontSize: 13, fontFamily: 'Karla, sans-serif', whiteSpace: 'nowrap' },
   statCard: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '20px 22px', boxShadow: 'var(--shadow-md)', transition: '0.15s' },
+  actionCard: { width: '100%', minHeight: 110, textAlign: 'left', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px 18px', boxShadow: 'var(--shadow-md)', transition: 'transform .15s ease, border-color .15s ease, box-shadow .15s ease', cursor: 'pointer', fontFamily: 'Karla, sans-serif', color: 'inherit' },
+  actionTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  actionIcon: { width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center', color: 'var(--gold)', background: 'var(--gold-dim)', border: '1px solid var(--border-acc)' },
+  openChip: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 8px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-3)', background: 'var(--bg-surface)', fontSize: 11, fontWeight: 800, transition: 'background .15s, color .15s, border-color .15s' },
   statLabel: { fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 },
   statValueRow: { display: 'flex', alignItems: 'center', gap: 8 },
   statValue: { fontFamily: 'Cormorant Garamond, serif', fontSize: 26, fontWeight: 700, color: 'var(--text-1)' },
   statSub: { fontSize: 12, color: 'var(--text-3)', marginTop: 6 },
+  freeHookCard: { display: 'flex', gap: 16, alignItems: 'stretch', background: 'linear-gradient(135deg, rgba(201,168,76,0.16), rgba(10,22,40,0.96))', border: '1px solid var(--border-acc)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-md)', flexWrap: 'wrap' },
+  freeHookIcon: { width: 48, height: 48, borderRadius: 14, display: 'grid', placeItems: 'center', color: 'var(--gold)', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 },
+  freeHookBody: { flex: 1, minWidth: 260 },
+  freeHookKicker: { fontSize: 11, color: 'var(--gold-l)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 900, marginBottom: 4 },
+  freeHookTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 23, fontWeight: 700, color: '#fff', marginBottom: 5 },
+  freeHookText: { fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.55, maxWidth: 680 },
+  freeHookActions: { display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 14 },
+  silverBtn: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 13px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.2)', background: '#fff', color: '#0A1628', fontSize: 13, fontWeight: 800, cursor: 'pointer' },
+  goldBtn: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 13px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', fontSize: 13, fontWeight: 900, cursor: 'pointer' },
+  lockedPreviewRail: { display: 'flex', flexDirection: 'column', gap: 8, minWidth: 150, justifyContent: 'center' },
+  lockedPreview: { display: 'inline-flex', alignItems: 'center', gap: 7, color: 'rgba(255,255,255,0.78)', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '7px 10px', fontSize: 12, fontWeight: 700 },
   incomeEdit: { display: 'flex', gap: 8, alignItems: 'center' },
   incomeInput: { flex: 1, minWidth: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-acc)', borderRadius: 6, padding: '6px 10px', color: 'var(--text-1)', fontSize: 15, fontFamily: 'Karla, sans-serif' },
   saveBtn: { padding: '6px 12px', background: 'var(--gold)', color: '#0A1628', borderRadius: 6, fontWeight: 700, fontSize: 12, fontFamily: 'Karla, sans-serif', flexShrink: 0, border: 'none' },

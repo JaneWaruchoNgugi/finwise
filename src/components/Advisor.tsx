@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { Ban, BookOpen, CalendarDays, ChartColumn, Gem, Home, Lightbulb, PiggyBank, RefreshCw, Shield, Sprout, Target, TrendingUp } from 'lucide-react';
 import type { InvestmentAdvice, FinancialProfile, MonthlyBreakdown, IncomeStream } from '../types';
 import { formatCurrency } from '../utils/expenses';
 import { getInvestmentAdvice } from '../utils/calculations';
+
+type IconComponent = React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>;
 
 interface AdvisorProps {
   profile: FinancialProfile;
@@ -50,11 +53,11 @@ export const Advisor: React.FC<AdvisorProps> = ({ profile, onUpdateIncome, bills
   const removeStream = (id: string) =>
     setStreams(prev => prev.length > 1 ? prev.filter(s => s.id !== id) : prev);
 
-  const allocationItems = [
-    { label: 'Living Expenses', amount: advice.living, pct: income > 0 ? Math.round((advice.living / income) * 100) : 0, color: 'var(--blue)', icon: '🏠', desc: 'Housing, food, transport, utilities, medical' },
-    { label: 'Emergency Fund', amount: advice.emergencyFund, pct: income > 0 ? Math.round((advice.emergencyFund / income) * 100) : 0, color: 'var(--red)', icon: '🛡️', desc: 'Unexpected events, job loss, medical emergencies' },
-    { label: 'Savings', amount: advice.savings, pct: income > 0 ? Math.round((advice.savings / income) * 100) : 0, color: 'var(--green)', icon: '💰', desc: 'Short-term goals, school fees, purchases' },
-    { label: 'Investments', amount: advice.investment, pct: income > 0 ? Math.round((advice.investment / income) * 100) : 0, color: 'var(--gold)', icon: '📈', desc: 'MMFs, SACCOs, NSE stocks, bonds' },
+  const allocationItems: { label: string; amount: number; pct: number; color: string; icon: IconComponent; desc: string }[] = [
+    { label: 'Living Expenses', amount: advice.living, pct: income > 0 ? Math.round((advice.living / income) * 100) : 0, color: 'var(--blue)', icon: Home, desc: 'Housing, food, transport, utilities, medical' },
+    { label: 'Emergency Fund', amount: advice.emergencyFund, pct: income > 0 ? Math.round((advice.emergencyFund / income) * 100) : 0, color: 'var(--red)', icon: Shield, desc: 'Unexpected events, job loss, medical emergencies' },
+    { label: 'Savings', amount: advice.savings, pct: income > 0 ? Math.round((advice.savings / income) * 100) : 0, color: 'var(--green)', icon: PiggyBank, desc: 'Short-term goals, school fees, purchases' },
+    { label: 'Investments', amount: advice.investment, pct: income > 0 ? Math.round((advice.investment / income) * 100) : 0, color: 'var(--gold)', icon: TrendingUp, desc: 'MMFs, SACCOs, NSE stocks, bonds' },
   ];
 
   const incomeLabel =
@@ -168,9 +171,11 @@ export const Advisor: React.FC<AdvisorProps> = ({ profile, onUpdateIncome, bills
           <div style={S.allocationCard}>
             <div style={S.cardTitle}>Recommended Monthly Allocation</div>
             <div className="allocation-grid">
-              {allocationItems.map((item) => (
+              {allocationItems.map((item) => {
+                const Icon = item.icon;
+                return (
                 <div key={item.label} style={{ ...S.allocItem, border: `1px solid ${item.color}25` }}>
-                  <div style={{ ...S.allocIcon, background: `${item.color}15` }}>{item.icon}</div>
+                  <div style={{ ...S.allocIcon, background: `${item.color}15`, color: item.color }}><Icon size={22} strokeWidth={2.1} /></div>
                   <div style={S.allocInfo}>
                     <div style={S.allocLabel}>{item.label}</div>
                     <div style={S.allocDesc}>{item.desc}</div>
@@ -183,14 +188,15 @@ export const Advisor: React.FC<AdvisorProps> = ({ profile, onUpdateIncome, bills
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* Actual vs Recommended */}
           {breakdown && income > 0 && (
             <div style={S.allocationCard}>
-              <div style={S.cardTitle}>📊 Actual vs Recommended</div>
+              <div style={S.cardTitle}><ChartColumn size={22} strokeWidth={2.1} style={S.titleIcon} /> Actual vs Recommended</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
                   { label: 'Total Spending', actual: actualSpend, recommended: advice.living + advice.emergencyFund, color: actualSpend > advice.living + advice.emergencyFund ? 'var(--red)' : 'var(--green)' },
@@ -213,7 +219,7 @@ export const Advisor: React.FC<AdvisorProps> = ({ profile, onUpdateIncome, bills
           {/* Emergency fund */}
           <div style={S.emergencyCard}>
             <div style={S.emergencyHeader}>
-              <span style={S.emergencyIcon}>🛡️</span>
+              <span style={S.emergencyIcon}><Shield size={30} strokeWidth={2.1} /></span>
               <div>
                 <div style={S.emergencyTitle}>Emergency Fund Goal</div>
                 <p style={S.emergencyDesc}>
@@ -239,7 +245,7 @@ export const Advisor: React.FC<AdvisorProps> = ({ profile, onUpdateIncome, bills
 
           {/* Tips */}
           <div style={S.tipsCard}>
-            <div style={S.cardTitle}>💡 Personalised Investment Tips</div>
+            <div style={S.cardTitle}><Lightbulb size={22} strokeWidth={2.1} style={S.titleIcon} /> Personalised Investment Tips</div>
             <div style={S.tipsList}>
               {advice.tips.map((tip, i) => (
                 <div key={i} style={S.tipItem}>
@@ -252,21 +258,24 @@ export const Advisor: React.FC<AdvisorProps> = ({ profile, onUpdateIncome, bills
 
           {/* Habits */}
           <div style={S.habitsCard}>
-            <div style={S.cardTitle}>🌱 Habits That Build Wealth</div>
+            <div style={S.cardTitle}><Sprout size={22} strokeWidth={2.1} style={S.titleIcon} /> Habits That Build Wealth</div>
             <div className="habits-grid">
-              {HABITS.map((h) => (
+              {HABITS.map((h) => {
+                const Icon = h.icon;
+                return (
                 <div key={h.title} style={S.habitItem}>
-                  <div style={S.habitEmoji}>{h.emoji}</div>
+                  <div style={S.habitEmoji}><Icon size={24} strokeWidth={2.1} /></div>
                   <div style={S.habitTitle}>{h.title}</div>
                   <div style={S.habitBody}>{h.body}</div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </>
       ) : (
         <div style={S.promptCard}>
-          <div style={S.promptIcon}>💎</div>
+          <div style={S.promptIcon}><Gem size={42} strokeWidth={2.1} /></div>
           <div style={S.promptTitle}>Enter your income to get started</div>
           <p style={S.promptText}>
             FinWise will generate a personalised financial plan for you — investment targets, emergency fund goals, savings allocation, and more.
@@ -277,18 +286,19 @@ export const Advisor: React.FC<AdvisorProps> = ({ profile, onUpdateIncome, bills
   );
 };
 
-const HABITS = [
-  { emoji: '📅', title: 'Pay Yourself First', body: 'Move savings and investments the moment you receive income. Spend what remains.' },
-  { emoji: '📊', title: 'Track Every Expense', body: 'Awareness is the first step. Small leaks sink big ships — log everything.' },
-  { emoji: '🚫', title: '48-Hour Rule', body: 'Wait 48 hours before any unplanned purchase over KSh 1,000.' },
-  { emoji: '🔄', title: 'Automate Savings', body: 'Set up a standing order to your SACCO or MMF on payday.' },
-  { emoji: '📚', title: 'Invest in Knowledge', body: 'One financial book or course per quarter compounds your decision-making.' },
-  { emoji: '🎯', title: 'Annual Review', body: 'Review your financial goals every January and July. Adjust, adapt, advance.' },
+const HABITS: { icon: IconComponent; title: string; body: string }[] = [
+  { icon: CalendarDays, title: 'Pay Yourself First', body: 'Move savings and investments the moment you receive income. Spend what remains.' },
+  { icon: ChartColumn, title: 'Track Every Expense', body: 'Awareness is the first step. Log everything so patterns become visible.' },
+  { icon: Ban, title: '48-Hour Rule', body: 'Wait 48 hours before any unplanned purchase over KSh 1,000.' },
+  { icon: RefreshCw, title: 'Automate Savings', body: 'Set up a standing order to your SACCO or MMF on payday.' },
+  { icon: BookOpen, title: 'Invest in Knowledge', body: 'One financial book or course per quarter compounds your decision-making.' },
+  { icon: Target, title: 'Annual Review', body: 'Review your financial goals every January and July. Adjust, adapt, advance.' },
 ];
 
 const S: Record<string, React.CSSProperties> = {
   container: { display: 'flex', flexDirection: 'column', gap: 20 },
-  cardTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: 'var(--text-1)', marginBottom: 16 },
+  cardTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: 'var(--text-1)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 },
+  titleIcon: { color: 'var(--gold)', flexShrink: 0 },
   incomeCard: { background: 'var(--bg-elevated)', border: '1px solid var(--border-acc)', borderRadius: 14, padding: 'clamp(16px, 3vw, 28px)' },
   incomeLeft: { flex: 1, minWidth: 0 },
   incomeDesc: { fontSize: 14, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 16 },
@@ -307,7 +317,7 @@ const S: Record<string, React.CSSProperties> = {
   tierIncome: { fontSize: 13, color: 'var(--text-2)', marginTop: 4 },
   allocationCard: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '26px 28px' },
   allocItem: { display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', background: 'var(--bg-surface)', borderRadius: 10 },
-  allocIcon: { width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 },
+  allocIcon: { width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   allocInfo: { flex: 1, minWidth: 0 },
   allocLabel: { fontSize: 14, color: 'var(--text-1)', fontWeight: 600 },
   allocDesc: { fontSize: 12, color: 'var(--text-3)', marginTop: 2, lineHeight: 1.4 },
@@ -318,7 +328,7 @@ const S: Record<string, React.CSSProperties> = {
   allocBarFill: { height: '100%', borderRadius: 2, transition: 'width 0.6s ease' },
   emergencyCard: { background: 'var(--red-dim)', border: '1px solid var(--red-b)', borderRadius: 14, padding: '24px 28px' },
   emergencyHeader: { display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap' },
-  emergencyIcon: { fontSize: 32, flexShrink: 0 },
+  emergencyIcon: { color: 'var(--red)', flexShrink: 0, display: 'grid', placeItems: 'center' },
   emergencyTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 20, fontWeight: 600, color: 'var(--text-1)', marginBottom: 8 },
   emergencyDesc: { fontSize: 14, color: 'var(--text-2)', lineHeight: 1.6 },
   emergencyStat: { background: 'var(--bg-surface)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--border)' },
@@ -331,11 +341,11 @@ const S: Record<string, React.CSSProperties> = {
   tipText: { fontSize: 14, color: 'var(--text-2)', lineHeight: 1.6, paddingTop: 4 },
   habitsCard: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '26px 28px' },
   habitItem: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' },
-  habitEmoji: { fontSize: 26, marginBottom: 10 },
+  habitEmoji: { width: 38, height: 38, borderRadius: 11, marginBottom: 10, display: 'grid', placeItems: 'center', color: 'var(--gold)', background: 'var(--gold-dim)', border: '1px solid var(--border-acc)' },
   habitTitle: { fontSize: 14, color: 'var(--text-1)', fontWeight: 600, marginBottom: 6 },
   habitBody: { fontSize: 13, color: 'var(--text-3)', lineHeight: 1.5 },
   promptCard: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', background: 'var(--bg-card)', border: '1px dashed var(--border-acc)', borderRadius: 14, textAlign: 'center' },
-  promptIcon: { fontSize: 48, marginBottom: 16 },
+  promptIcon: { width: 60, height: 60, borderRadius: 16, marginBottom: 16, display: 'grid', placeItems: 'center', color: 'var(--gold)', background: 'var(--gold-dim)', border: '1px solid var(--border-acc)' },
   promptTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 26, fontWeight: 600, color: 'var(--gold)', marginBottom: 12 },
   promptText: { fontSize: 14, color: 'var(--text-2)', lineHeight: 1.7, maxWidth: 420 },
 };

@@ -19,11 +19,24 @@ type PaidTier = Exclude<SubscriptionTier, 'free'>;
 const SUBSCRIPTION_DAYS = 30;
 const SUBSCRIPTION_MS = SUBSCRIPTION_DAYS * 24 * 60 * 60 * 1000;
 
-const SUBSCRIPTION_PRICES: Record<PaidTier, number> = {
+const INTRO_PRICE_END_MS = Date.parse('2026-06-30T20:59:59.999Z'); // June 30, 2026 23:59:59 EAT
+
+const INTRO_SUBSCRIPTION_PRICES: Record<PaidTier, number> = {
   silver: 10,
-  gold: 10,
+  gold: 20,
   platinum: 999,
 };
+
+const STANDARD_SUBSCRIPTION_PRICES: Record<PaidTier, number> = {
+  silver: 299,
+  gold: 599,
+  platinum: 999,
+};
+
+const getSubscriptionPrice = (tier: PaidTier): number =>
+  Date.now() <= INTRO_PRICE_END_MS
+    ? INTRO_SUBSCRIPTION_PRICES[tier]
+    : STANDARD_SUBSCRIPTION_PRICES[tier];
 
 const normalizePhone = (phone: string): string => {
   const cleaned = String(phone || '').replace(/[^\d+]/g, '');
@@ -108,7 +121,7 @@ async function initiateSubscriptionPayment(input: {
   if (!userId) throw new HttpsError('invalid-argument', 'Missing user account.');
 
   const phone = normalizePhone(input.phone);
-  const expectedAmount = SUBSCRIPTION_PRICES[input.tier];
+  const expectedAmount = getSubscriptionPrice(input.tier);
   if (typeof input.amount === 'number' && input.amount !== expectedAmount) {
     throw new HttpsError('invalid-argument', 'Invalid ' + input.tier + ' amount.');
   }

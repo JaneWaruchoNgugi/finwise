@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { BarChart3, Bell, Bot, CreditCard, Goal, Home, Landmark, LineChart, PiggyBank, Shield, UserCircle, WalletCards } from 'lucide-react';
+import {
+    BarChart3, Bell, Bot, CreditCard, Goal, Home,
+    Info, Landmark, LineChart, PiggyBank, Shield, UserCircle, WalletCards
+} from 'lucide-react';
 import type { AppView } from '../types';
 import type { SubscriptionTier } from '../types';
 import {type Theme, ThemeContext, useTheme} from "../hooks/NavItems.ts";
@@ -45,8 +48,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard',   label: 'Overview',   icon: Home,         group: 'main' },
-  { id: 'advisor',     label: 'Advisor',    icon: Home,         group: 'main' },
+    { id: 'advisor',     label: 'Advisor',    icon:Home ,          group: 'main' },
+    { id: 'dashboard',   label: 'Overview',   icon: Info,         group: 'main' },
   { id: 'expenses',    label: 'Expenses',   icon: WalletCards,  group: 'main' },
   { id: 'investments', label: 'Invest',     icon: LineChart,    group: 'main' },
   { id: 'goals',       label: 'Goals',      icon: Goal,         group: 'plan' },
@@ -61,7 +64,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 // Bottom bar primary tabs (mobile)
-const FREE_MOBILE: AppView[] = ['advisor', 'expenses'];
+const FREE_MOBILE: AppView[] = [ 'advisor', 'expenses', 'goals', 'bills','dashboard'];
 const PAID_MOBILE: AppView[] = ['advisor', 'investments', 'chat', 'expenses', 'goals'];
 // MORE_ITEMS is commented out because the More sheet is currently disabled
 // const MORE_ITEMS = NAV_ITEMS.filter(n => !PAID_MOBILE.includes(n.id));
@@ -424,7 +427,8 @@ export const Header: React.FC<HeaderProps> = ({
           {(userTier === 'free' ? FREE_MOBILE : PAID_MOBILE).map(id => {
             const item = NAV_ITEMS.find(n => n.id === id)!;
             const Icon = item.icon;
-            const isCenter = id === 'chat';
+
+            const isCenter = (userTier === 'free' ? id==='goals':id === 'chat');
             return (
               <button
                 key={id}

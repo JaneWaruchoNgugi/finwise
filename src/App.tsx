@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BarChart3, Bell, Bot, Crown, Goal, Landmark, Lock, ReceiptText, Shield, Sparkles, TrendingUp } from 'lucide-react';
 import './styles/globals.css';
 import type { AppView, SubscriptionTier } from './types';
 import { useExpenses }      from './hooks/useExpenses';
@@ -40,11 +41,18 @@ import {
   exportNetWorthToCSV,
 } from './hooks/exportUtils';
 
+const INTRO_PRICE_END_MS = Date.parse('2026-06-30T20:59:59.999+03:00');
+const currentTierPrice = (tier: SubscriptionTier): number => {
+  const introPrices: Record<SubscriptionTier, number> = { free: 0, silver: 10, gold: 20, platinum: 999 };
+  const standardPrices: Record<SubscriptionTier, number> = { free: 0, silver: 299, gold: 599, platinum: 999 };
+  return Date.now() <= INTRO_PRICE_END_MS ? introPrices[tier] : standardPrices[tier];
+};
+
 const TIER_META: Record<SubscriptionTier, { name: string; price: number; color: string }> = {
-  free:     { name: 'Free',     price: 0,   color: '#9BAAC4' },
-  silver:   { name: 'Silver',   price: 10, color: '#C0C0C0' },
-  gold:     { name: 'Gold',     price: 10, color: '#C9A84C' },
-  platinum: { name: 'Platinum', price: 999, color: '#A78BFA' },
+  free:     { name: 'Free',     price: currentTierPrice('free'),     color: '#9BAAC4' },
+  silver:   { name: 'Silver',   price: currentTierPrice('silver'),   color: '#C0C0C0' },
+  gold:     { name: 'Gold',     price: currentTierPrice('gold'),     color: '#C9A84C' },
+  platinum: { name: 'Platinum', price: currentTierPrice('platinum'), color: '#A78BFA' },
 };
 
 type AppStage = 'landing' | 'payment' | 'auth' | 'app';
@@ -83,6 +91,11 @@ const App: React.FC = () => {
 
   const handleUpdateIncome = (income: number, streams?: import('./types').IncomeStream[]) =>
     updateProfile(income, profile.currency, streams);
+
+  const openPaidPlan = (tier: SubscriptionTier) => {
+    setSelectedTier(tier);
+    setStage('payment');
+  };
 
   // ── Stage: Landing ──────────────────────────────────────
   if (!auth.isUnlocked && stage === 'landing') {
@@ -161,22 +174,41 @@ const App: React.FC = () => {
     return null;
   })();
   const lockedViews = PLAN_LOCKED_VIEWS[userTier] ?? [];
-  const isLocked = (view: AppView) => lockedViews.includes(view);
+  const isLocked = (view: AppView) => userTier === 'free' && view === 'goals' ? false : lockedViews.includes(view);
 
-  const UpgradeWall: React.FC<{ view: AppView }> = ({ view }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 16, padding: 32 }}>
-      <div style={{ fontSize: 40 }}>🔒</div>
-      <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, color: 'var(--text-1)', fontWeight: 700 }}>
-        {view.charAt(0).toUpperCase() + view.slice(1)} is a premium feature
+  const wallCopy: Partial<Record<AppView, { icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; tier: SubscriptionTier; title: string; body: string; bullets: string[] }>> = {
+    bills: { icon: ReceiptText, tier: 'silver', title: 'Turn expenses into a monthly bill plan', body: 'Silver unlocks recurring bills, due dates, and payment status so users stop guessing what is coming next.', bullets: ['Recurring bills', 'Due date tracking', 'Paid and overdue status'] },
+    networth: { icon: Landmark, tier: 'silver', title: 'Show the full financial position', body: 'Silver adds net worth so assets and debts sit beside daily spending.', bullets: ['Assets and liabilities', 'Net worth summary', 'Progress over time'] },
+    emergency: { icon: Shield, tier: 'silver', title: 'Build an emergency fund with structure', body: 'Silver gives users a target, current balance, and months-covered view.', bullets: ['Emergency target', 'Deposit tracking', 'Months covered'] },
+    investments: { icon: TrendingUp, tier: 'gold', title: 'Reveal portfolio growth and allocation', body: 'Gold unlocks investment tracking for SACCOs, MMFs, stocks, bonds, crypto, and long-term projections.', bullets: ['Portfolio tracker', 'Allocation view', 'Growth projections'] },
+    insights: { icon: BarChart3, tier: 'gold', title: 'Your full spending insight is ready', body: 'Gold turns logged expenses into deeper comparisons, lifestyle warnings, and savings opportunities.', bullets: ['Ideal vs actual allocation', 'Lifestyle overspend warnings', 'Savings opportunity estimates'] },
+    chat: { icon: Bot, tier: 'gold', title: 'Ask AI about your actual money', body: 'Gold unlocks the AI advisor with context from spending, goals, bills, investments, and net worth.', bullets: ['Personal AI guidance', 'Context-aware answers', 'Action plans'] },
+    alerts: { icon: Bell, tier: 'gold', title: 'Unlock alerts and SOS support', body: 'Gold adds emergency alerts and AI-supported action planning when the numbers need attention.', bullets: ['SOS contacts', 'Emergency summaries', 'AI action plans'] },
+  };
+
+  const UpgradeWall: React.FC<{ view: AppView }> = ({ view }) => {
+    const copy = wallCopy[view] ?? { icon: Lock, tier: 'silver' as SubscriptionTier, title: `${view.charAt(0).toUpperCase() + view.slice(1)} is a premium feature`, body: 'Upgrade your plan to unlock this and more tools.', bullets: ['More planning tools', 'Better money visibility', 'Premium support'] };
+    const Icon = copy.icon;
+    const targetTier = copy.tier;
+    return (
+      <div style={upgradeWallStyle} className="animate-in">
+        <div style={wallIconStyle}><Icon size={28} strokeWidth={2.1} /></div>
+        <div style={wallBadgeStyle}><Sparkles size={13} /> {targetTier === 'gold' ? 'Gold preview' : 'Silver preview'}</div>
+        <div style={wallTitleStyle}>{copy.title}</div>
+        <div style={wallBodyStyle}>{copy.body}</div>
+        <div style={wallBulletGridStyle}>
+          {copy.bullets.map((bullet) => <div key={bullet} style={wallBulletStyle}><Lock size={13} /> {bullet}</div>)}
+        </div>
+        <div style={wallActionRowStyle}>
+          <button style={targetTier === 'gold' ? wallGoldBtnStyle : wallSilverBtnStyle} onClick={() => openPaidPlan(targetTier)}>
+            {targetTier === 'gold' ? <Crown size={16} /> : <Goal size={16} />} Unlock {TIER_META[targetTier].name} for KES {TIER_META[targetTier].price.toLocaleString()}
+          </button>
+          {targetTier !== 'gold' && <button style={wallGoldBtnStyle} onClick={() => openPaidPlan('gold')}><Crown size={16} /> Compare Gold</button>}
+        </div>
+        <div style={wallCurrentStyle}>Current plan: <strong style={{ color: TIER_META[userTier].color }}>{TIER_META[userTier].name}</strong></div>
       </div>
-      <div style={{ fontSize: 14, color: 'var(--text-3)', textAlign: 'center', maxWidth: 320 }}>
-        Upgrade your plan to unlock this and more features.
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--text-2)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 16px' }}>
-        Current plan: <strong style={{ color: TIER_META[userTier].color }}>{TIER_META[userTier].name}</strong>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <ThemeProvider>
@@ -255,6 +287,9 @@ const App: React.FC = () => {
               onAddHabit={habits.addHabit}
               onRemoveHabit={habits.removeHabit}
               onNavigate={setActiveView}
+              userTier={userTier}
+              expenseCount={monthlyExpenses.length}
+              onUpgrade={openPaidPlan}
             />
           )}
 
@@ -304,6 +339,8 @@ const App: React.FC = () => {
               onContribute={goals.contribute}
               onUpdateSaved={goals.updateSaved}
               currency={profile.currency}
+              maxGoals={userTier === 'free' ? 1 : undefined}
+              onUpgrade={() => openPaidPlan('silver')}
             />
           )}
 
@@ -413,10 +450,7 @@ const App: React.FC = () => {
           {activeView === 'upgrade' && (
             <UpgradePage
               currentTier={userTier}
-              onSelectPlan={(tier) => {
-                setSelectedTier(tier);
-                setStage('payment');
-              }}
+              onSelectPlan={openPaidPlan}
             />
           )}
 
@@ -454,6 +488,124 @@ const exportBtnStyle: React.CSSProperties = {
   fontFamily: 'Karla, sans-serif',
   fontWeight: 600,
   cursor: 'pointer',
+};
+
+
+const upgradeWallStyle: React.CSSProperties = {
+  minHeight: 360,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 14,
+  padding: 32,
+  background: 'linear-gradient(135deg, var(--bg-card), var(--bg-surface))',
+  border: '1px solid var(--border-acc)',
+  borderRadius: 18,
+  boxShadow: 'var(--shadow-md)',
+  textAlign: 'center',
+};
+
+const wallIconStyle: React.CSSProperties = {
+  width: 64,
+  height: 64,
+  borderRadius: 18,
+  display: 'grid',
+  placeItems: 'center',
+  color: 'var(--gold)',
+  background: 'var(--gold-dim)',
+  border: '1px solid var(--border-acc)',
+};
+
+const wallBadgeStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 7,
+  color: 'var(--gold)',
+  background: 'var(--gold-dim)',
+  border: '1px solid var(--border-acc)',
+  borderRadius: 999,
+  padding: '6px 11px',
+  fontSize: 11,
+  fontWeight: 900,
+  textTransform: 'uppercase',
+};
+
+const wallTitleStyle: React.CSSProperties = {
+  fontFamily: 'Cormorant Garamond, serif',
+  fontSize: 28,
+  color: 'var(--text-1)',
+  fontWeight: 700,
+  maxWidth: 620,
+};
+
+const wallBodyStyle: React.CSSProperties = {
+  fontSize: 14,
+  color: 'var(--text-2)',
+  lineHeight: 1.65,
+  maxWidth: 560,
+};
+
+const wallBulletGridStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  gap: 9,
+  flexWrap: 'wrap',
+  maxWidth: 620,
+};
+
+const wallBulletStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 7,
+  padding: '8px 11px',
+  borderRadius: 999,
+  color: 'var(--text-2)',
+  background: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const wallActionRowStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  gap: 10,
+  flexWrap: 'wrap',
+  marginTop: 4,
+};
+
+const wallSilverBtnStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '12px 16px',
+  background: '#fff',
+  color: '#0A1628',
+  border: '1px solid var(--border-acc)',
+  borderRadius: 10,
+  fontWeight: 900,
+  fontSize: 13,
+  cursor: 'pointer',
+};
+
+const wallGoldBtnStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '12px 16px',
+  background: 'linear-gradient(135deg, var(--gold), var(--gold-l))',
+  color: '#0A1628',
+  border: 'none',
+  borderRadius: 10,
+  fontWeight: 900,
+  fontSize: 13,
+  cursor: 'pointer',
+};
+
+const wallCurrentStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: 'var(--text-3)',
 };
 
 export default App;

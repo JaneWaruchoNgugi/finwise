@@ -16,8 +16,8 @@ interface AppConfig {
 }
 
 const DEFAULT_CONFIG: AppConfig = {
-  silverPrice: 10,
-  goldPrice: 10,
+  silverPrice: 299,
+  goldPrice: 599,
   supportEmail: 'support@finwise.app',
   supportPhone: '',
   gracePeriodDays: 3,

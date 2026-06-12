@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Lock, Sparkles } from 'lucide-react';
 import type { Goal, GoalCategory } from '../types';
 import { GOAL_META, getGoalProgress, getGoalDeadlineStatus, projectGoalDate } from '../hooks/goals';
 import { formatCurrency } from '../utils/expenses';
@@ -14,11 +15,13 @@ interface GoalsProps {
   onContribute: (id: string, amount: number) => void;
   onUpdateSaved: (id: string, amount: number) => void;
   currency: string;
+  maxGoals?: number;
+  onUpgrade?: () => void;
 }
 
 export const Goals: React.FC<GoalsProps> = ({
   goals, activeGoals, completedGoals, totalTargeted, totalSaved,
-  onAdd, onRemove, onContribute, currency,
+  onAdd, onRemove, onContribute, currency, maxGoals, onUpgrade,
 }) => {
   const [name, setName]         = useState('');
   const [target, setTarget]     = useState('');
@@ -35,7 +38,7 @@ export const Goals: React.FC<GoalsProps> = ({
     const tgt = parseFloat(target.replace(/,/g, ''));
     const sav = parseFloat(saved.replace(/,/g, '') || '0');
     const mon = parseFloat(monthly.replace(/,/g, '') || '0');
-    if (!name.trim() || isNaN(tgt) || tgt <= 0) return;
+    if (!name.trim() || isNaN(tgt) || tgt <= 0 || goalLimitReached) return;
     onAdd({ name: name.trim(), targetAmount: tgt, savedAmount: sav, category, deadline, monthlyContribution: mon, notes });
     setName(''); setTarget(''); setSaved(''); setMonthly(''); setDeadline(''); setNotes('');
     setSubmitted(true); setTimeout(() => setSubmitted(false), 1500);
@@ -49,6 +52,7 @@ export const Goals: React.FC<GoalsProps> = ({
   };
 
   const overallPct = totalTargeted > 0 ? Math.round((totalSaved / totalTargeted) * 100) : 0;
+  const goalLimitReached = typeof maxGoals === 'number' && goals.length >= maxGoals;
 
   return (
     <div style={S.container} className="animate-in">
@@ -89,19 +93,30 @@ export const Goals: React.FC<GoalsProps> = ({
       )}
 
       {/* Add form */}
-      <div style={S.formCard}>
+      <div style={goalLimitReached ? { ...S.formCard, ...S.lockedFormCard } : S.formCard}>
         <div style={S.formTitleRow}>
           <div style={S.cardTitle}>Add New Goal</div>
+          {goalLimitReached && <span style={S.limitTag}><Lock size={12} /> Free plan limit</span>}
           {submitted && <span style={S.successTag}>✓ Goal Added!</span>}
         </div>
+        {goalLimitReached && (
+          <div style={S.upgradePrompt}>
+            <div style={S.upgradeIcon}><Sparkles size={18} /></div>
+            <div style={{ flex: 1 }}>
+              <div style={S.upgradeTitle}>Your first goal is active. Silver unlocks unlimited planning.</div>
+              <div style={S.upgradeText}>Add more goals, plan deadlines, and track emergency fund progress without replacing your current goal.</div>
+            </div>
+            {onUpgrade && <button style={S.upgradeBtn} onClick={onUpgrade}>Upgrade to Silver</button>}
+          </div>
+        )}
         <div className="goals-form-grid">
           <div style={S.field}>
             <label style={S.label}>Goal Name</label>
-            <input style={S.input} placeholder="e.g. Mombasa Vacation" value={name} onChange={(e) => setName(e.target.value)} />
+            <input style={S.input} placeholder="e.g. Mombasa Vacation" value={name} onChange={(e) => setName(e.target.value)} disabled={goalLimitReached} />
           </div>
           <div style={S.field}>
             <label style={S.label}>Category</label>
-            <select style={S.select} value={category} onChange={(e) => setCategory(e.target.value as GoalCategory)}>
+            <select style={S.select} value={category} onChange={(e) => setCategory(e.target.value as GoalCategory)} disabled={goalLimitReached}>
               {(Object.entries(GOAL_META) as [GoalCategory, typeof GOAL_META[GoalCategory]][]).map(([k, m]) => (
                 <option key={k} value={k}>{m.icon} {m.label}</option>
               ))}
@@ -109,26 +124,26 @@ export const Goals: React.FC<GoalsProps> = ({
           </div>
           <div style={S.field}>
             <label style={S.label}>Target Amount (KSh)</label>
-            <input style={S.input} type="number" placeholder="e.g. 150000" value={target} onChange={(e) => setTarget(e.target.value)} />
+            <input style={S.input} type="number" placeholder="e.g. 150000" value={target} onChange={(e) => setTarget(e.target.value)} disabled={goalLimitReached} />
           </div>
           <div style={S.field}>
             <label style={S.label}>Already Saved (KSh)</label>
-            <input style={S.input} type="number" placeholder="0" value={saved} onChange={(e) => setSaved(e.target.value)} />
+            <input style={S.input} type="number" placeholder="0" value={saved} onChange={(e) => setSaved(e.target.value)} disabled={goalLimitReached} />
           </div>
           <div style={S.field}>
             <label style={S.label}>Monthly Contribution (KSh)</label>
-            <input style={S.input} type="number" placeholder="e.g. 5000" value={monthly} onChange={(e) => setMonthly(e.target.value)} />
+            <input style={S.input} type="number" placeholder="e.g. 5000" value={monthly} onChange={(e) => setMonthly(e.target.value)} disabled={goalLimitReached} />
           </div>
           <div style={S.field}>
             <label style={S.label}>Deadline (optional)</label>
-            <input style={S.input} type="month" value={deadline} onChange={(e) => setDeadline(e.target.value)}
+            <input style={S.input} type="month" value={deadline} onChange={(e) => setDeadline(e.target.value)} disabled={goalLimitReached}
               // style={{ ...S.input, colorScheme: 'dark' }}
             />
           </div>
         </div>
         <div style={S.formBottom}>
-          <input style={{ ...S.input, flex: 1 }} placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          <button style={{ ...S.addBtn, opacity: !name.trim() || !target ? 0.5 : 1 }} onClick={handleAdd} disabled={!name.trim() || !target}>
+          <input style={{ ...S.input, flex: 1 }} placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} disabled={goalLimitReached} />
+          <button style={{ ...S.addBtn, opacity: !name.trim() || !target || goalLimitReached ? 0.5 : 1 }} onClick={handleAdd} disabled={!name.trim() || !target || goalLimitReached}>
             + Add Goal
           </button>
         </div>
@@ -262,6 +277,13 @@ const S: Record<string, React.CSSProperties> = {
   formCard: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 22px' },
   formTitleRow: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 },
   successTag: { fontSize: 12, color: 'var(--green)', background: 'var(--green-dim)', padding: '3px 10px', borderRadius: 4, fontWeight: 600 },
+  limitTag: { fontSize: 12, color: 'var(--gold)', background: 'var(--gold-dim)', border: '1px solid var(--border-acc)', padding: '3px 10px', borderRadius: 999, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 },
+  lockedFormCard: { borderColor: 'var(--border-acc)', background: 'linear-gradient(135deg, var(--bg-card), var(--gold-dim))' },
+  upgradePrompt: { display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', border: '1px solid var(--border-acc)', borderRadius: 12, background: 'var(--bg-surface)', marginBottom: 18, flexWrap: 'wrap' },
+  upgradeIcon: { width: 38, height: 38, borderRadius: 11, display: 'grid', placeItems: 'center', color: 'var(--gold)', background: 'var(--gold-dim)', flexShrink: 0 },
+  upgradeTitle: { fontSize: 14, fontWeight: 800, color: 'var(--text-1)', marginBottom: 3 },
+  upgradeText: { fontSize: 12, color: 'var(--text-3)', lineHeight: 1.45 },
+  upgradeBtn: { padding: '9px 14px', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 12, fontFamily: 'Karla, sans-serif', cursor: 'pointer' },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.07em' },
   input: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', color: 'var(--text-1)', fontSize: 14, fontFamily: 'Karla, sans-serif' },

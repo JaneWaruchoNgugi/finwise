@@ -3,7 +3,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import type { UserProfile, SubscriptionTier } from '../../../types';
 
-const TIER_PRICE: Record<SubscriptionTier, number> = { free: 0, silver: 10, gold: 10, platinum: 999 };
+const TIER_PRICE: Record<SubscriptionTier, number> = { free: 0, silver: 299, gold: 599, platinum: 999 };
 const TIER_COLOR: Record<SubscriptionTier, string> = { free: '#9BAAC4', silver: '#C0C0C0', gold: '#C9A84C', platinum: '#A78BFA' };
 const TIERS: SubscriptionTier[] = ['free', 'silver', 'gold', 'platinum'];
 

@@ -6,6 +6,7 @@ interface Plan {
   tier: SubscriptionTier;
   name: string;
   price: number;
+  standardPrice: number;
   color: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   tagline: string;
@@ -18,6 +19,7 @@ const PLANS: Plan[] = [
     tier: 'silver',
     name: 'Silver',
     price: 10,
+    standardPrice: 299,
     color: '#94A3B8',
     icon: Shield,
     tagline: 'Planning essentials',
@@ -26,7 +28,8 @@ const PLANS: Plan[] = [
   {
     tier: 'gold',
     name: 'Gold',
-    price: 10,
+    price: 20,
+    standardPrice: 599,
     color: '#D97706',
     icon: Crown,
     tagline: 'Complete premium access',
@@ -124,7 +127,8 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({ currentTier, onSelectP
               <div style={S.planTagline}>{plan.tagline}</div>
               <div style={S.planPrice}>
                 <span style={S.planAmt}>KES {plan.price.toLocaleString()}</span>
-                <span style={S.planPer}>/mo</span>
+                <span style={S.planPer}>/first month</span>
+                <div style={S.planStandard}>Then KES {plan.standardPrice.toLocaleString()}/mo after June 30, 2026</div>
               </div>
               <div style={S.featureList}>
                 {plan.features.map(feature => (
@@ -147,7 +151,7 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({ currentTier, onSelectP
         })}
       </section>
 
-      <div style={S.note}><Lock size={13} /> Secure payment via M-Pesa. Premium access renews every 30 days.</div>
+      <div style={S.note}><Lock size={13} /> Secure payment via M-Pesa. Launch pricing applies to the first 30-day month until June 30, 2026.</div>
     </div>
   );
 };
@@ -173,6 +177,7 @@ const S: Record<string, React.CSSProperties> = {
   planPrice: { margin: '15px 0 18px' },
   planAmt: { fontFamily: 'Cormorant Garamond, serif', fontSize: 30, fontWeight: 700, color: 'var(--text-1)' },
   planPer: { fontSize: 13, color: 'var(--text-3)', marginLeft: 4 },
+  planStandard: { fontSize: 12, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.45 },
   featureList: { display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 22, flex: 1 },
   featureItem: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: 'var(--text-2)', padding: '8px 0', borderBottom: '1px solid var(--border)', lineHeight: 1.35 },
   planBtn: { width: '100%', padding: 13, background: 'var(--btn-gradient)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, fontFamily: 'DM Sans, sans-serif', transition: 'filter .15s, transform .15s' },

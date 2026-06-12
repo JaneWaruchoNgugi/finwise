@@ -84,6 +84,8 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
   // const [attempts, setAttempts]     = useState(0);
 
   const handleLoginPinComplete = (v: string) => {
+    if (loading) return;
+    setLoginErr('');
     setTimeout(async () => {
       const ok = await onUnlock(loginPhone, v);
       if (!ok) {
@@ -112,6 +114,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
       <style>{`
         @keyframes authIn { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
         .auth-card { animation: authIn 0.35s ease forwards; }
+        @keyframes authSpin { to { transform: rotate(360deg); } }
       `}</style>
       <div style={S.bg} />
       <div style={S.card} className="auth-card">
@@ -149,9 +152,10 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
           <>
             <div style={S.title}>Enter PIN</div>
             <p style={S.sub}>Enter your 4-digit PIN</p>
-            <PinInput value={loginPin} onChange={v => { setLoginPin(v); setLoginErr(''); }} onComplete={handleLoginPinComplete} error={!!(loginErr || authError)} autoFocus />
-            {(loginErr || authError) && <div style={S.err}>{loginErr || authError}</div>}
-            <button style={S.backLink} onClick={() => { setLoginPin(''); setLoginErr(''); setLoginStep('phone'); }}>← Back</button>
+            <PinInput value={loginPin} onChange={v => { if (!loading) { setLoginPin(v); setLoginErr(''); } }} onComplete={handleLoginPinComplete} error={!!(loginErr || authError)} autoFocus={!loading} />
+            {loading && <div style={S.loadingBox}><span style={S.spinner} /> Checking account...</div>}
+            {(loginErr || authError) && !loading && <div style={S.err}>{loginErr || authError}</div>}
+            <button style={{ ...S.backLink, opacity: loading ? 0.45 : 1, cursor: loading ? 'not-allowed' : 'pointer' }} disabled={loading} onClick={() => { setLoginPin(''); setLoginErr(''); setLoginStep('phone'); }}>← Back</button>
             <div style={S.hint}>
               Forgot PIN? <button style={S.link} onClick={() => { if (window.confirm('This will delete all your data. Continue?')) { localStorage.clear(); window.location.reload(); } }}>Reset everything</button>
             </div>
@@ -231,6 +235,8 @@ const S: Record<string, React.CSSProperties> = {
   input:    { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', color: 'var(--text-1)', fontSize: 15, fontFamily: 'Karla, sans-serif', outline: 'none' },
   btn:      { width: '100%', padding: '13px', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', borderRadius: 12, fontWeight: 700, fontSize: 15, fontFamily: 'Karla, sans-serif', border: 'none', cursor: 'pointer' },
   err:      { fontSize: 13, color: 'var(--red)', background: 'var(--red-dim)', padding: '9px 12px', borderRadius: 8, marginTop: 4, textAlign: 'center' },
+  loadingBox: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, color: 'var(--gold)', background: 'rgba(255,127,0,0.1)', border: '1px solid rgba(255,127,0,0.18)', padding: '9px 12px', borderRadius: 8, marginTop: 4, textAlign: 'center', fontWeight: 700 },
+  spinner:  { width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,127,0,0.25)', borderTopColor: 'var(--gold)', animation: 'authSpin 0.75s linear infinite' },
   hint:     { fontSize: 12, color: 'var(--text-3)', textAlign: 'center', marginTop: 16, lineHeight: 1.6 },
   link:     { background: 'transparent', border: 'none', color: 'var(--gold)', fontSize: 12, fontFamily: 'Karla, sans-serif', cursor: 'pointer', textDecoration: 'underline', padding: 0 },
   backLink: { background: 'transparent', border: 'none', color: 'var(--text-3)', fontSize: 13, fontFamily: 'Karla, sans-serif', cursor: 'pointer', display: 'block', margin: '8px auto 0', padding: '6px 12px' },

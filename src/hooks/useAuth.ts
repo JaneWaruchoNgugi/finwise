@@ -24,15 +24,216 @@ const normalizePhone = (phone: string): string => {
 
 const phoneToId = (phone: string) => normalizePhone(phone).replace(/\s+/g, '');
 
+const phoneVariants = (phone: string): string[] => {
+  const raw = String(phone || '').trim();
+  const compact = raw.replace(/\s+/g, '');
+  const digitsOnly = compact.replace(/\D/g, '');
+  const normalized = normalizePhone(raw);
+  const variants = new Set<string>([raw, compact, normalized, normalized.replace(/\s+/g, '')].filter(Boolean));
+
+  if (/^0\d{9}$/.test(normalized)) {
+    variants.add('254' + normalized.slice(1));
+    variants.add('+254' + normalized.slice(1));
+  }
+  if (/^254\d{9}$/.test(digitsOnly)) {
+    variants.add(digitsOnly);
+    variants.add('+' + digitsOnly);
+    variants.add('0' + digitsOnly.slice(3));
+  }
+  if (/^\d{9}$/.test(digitsOnly)) {
+    variants.add('0' + digitsOnly);
+    variants.add('254' + digitsOnly);
+    variants.add('+254' + digitsOnly);
+  }
+
+  return Array.from(variants);
+};
+
+const findUserByPhone = async (phone: string): Promise<{ uid: string; data: UserProfile } | null> => {
+  const variants = phoneVariants(phone);
+  const lookupValues: unknown[] = Array.from(new Set([
+    ...variants,
+    ...variants.map(v => Number(v.replace(/\D/g, ''))).filter(Number.isFinite),
+  ]));
+
+  for (const id of variants.map(v => v.replace(/\s+/g, ''))) {
+    const snap = await getDoc(doc(db, 'users', id));
+    if (snap.exists()) return { uid: snap.id, data: snap.data() as UserProfile };
+  }
+
+  for (const value of lookupValues) {
+    const matches = await getDocs(query(collection(db, 'users'), where('phone', '==', value)));
+    if (!matches.empty) return { uid: matches.docs[0].id, data: matches.docs[0].data() as UserProfile };
+  }
+
+  for (const value of lookupValues) {
+    const payments = await getDocs(query(collection(db, 'payments'), where('phone', '==', value)));
+    for (const paymentSnap of payments.docs) {
+      const payment = paymentSnap.data() as { userId?: unknown };
+      const userId = typeof payment.userId === 'string' ? payment.userId.trim() : '';
+      if (!userId) continue;
+      const userSnap = await getDoc(doc(db, 'users', userId));
+      if (userSnap.exists()) return { uid: userSnap.id, data: userSnap.data() as UserProfile };
+    }
+  }
+
+  return null;
+};
+
 const loadLocalProfile = (): UserProfile | null => {
   try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); }
   catch { return null; }
 };
 
 type ServerProfile = Partial<UserProfile> & { subscriptionStatus?: string; pendingTier?: SubscriptionTier | null };
+type PaymentDoc = {
+  id: string;
+  userId?: string;
+  phone?: string;
+  tier?: SubscriptionTier;
+  status?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+};
 
 const saveProfile = (profile: UserProfile) => {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+};
+
+const isPaidTier = (tier: unknown): tier is Exclude<SubscriptionTier, 'free'> =>
+  tier === 'silver' || tier === 'gold' || tier === 'platinum';
+
+const isSuccessfulPaymentStatus = (status: unknown) =>
+  status === 'success' || status === 'paid';
+
+const toMillis = (value: unknown): number => {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return Date.parse(value) || 0;
+  if (typeof value === 'object') {
+    const maybeTimestamp = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+    if (typeof maybeTimestamp.toMillis === 'function') return maybeTimestamp.toMillis();
+    if (typeof maybeTimestamp.toDate === 'function') return maybeTimestamp.toDate().getTime();
+    if (typeof maybeTimestamp.seconds === 'number') return maybeTimestamp.seconds * 1000;
+  }
+  return 0;
+};
+
+const phoneLookupValues = (phone: string): unknown[] => {
+  const variants = phoneVariants(phone);
+  return Array.from(new Set([
+    ...variants,
+    ...variants.map(v => Number(v.replace(/\D/g, ''))).filter(Number.isFinite),
+  ]));
+};
+
+const findLatestSuccessfulPayment = async (uid: string, phone?: string): Promise<PaymentDoc | null> => {
+  const payments = new Map<string, PaymentDoc>();
+  const addMatches = (docs: Awaited<ReturnType<typeof getDocs>>) => {
+    docs.forEach(snap => {
+      const data = snap.data() as Omit<PaymentDoc, 'id'>;
+      if (isSuccessfulPaymentStatus(data.status) && isPaidTier(data.tier)) {
+        payments.set(snap.id, { id: snap.id, ...data });
+      }
+    });
+  };
+
+  if (uid) {
+    addMatches(await getDocs(query(collection(db, 'payments'), where('userId', '==', uid))));
+  }
+
+  for (const value of phone ? phoneLookupValues(phone) : []) {
+    addMatches(await getDocs(query(collection(db, 'payments'), where('phone', '==', value))));
+  }
+
+  return Array.from(payments.values()).sort((a, b) => {
+    const aTime = toMillis(a.createdAt) || toMillis(a.updatedAt);
+    const bTime = toMillis(b.createdAt) || toMillis(b.updatedAt);
+    return bTime - aTime;
+  })[0] ?? null;
+};
+
+const hasCurrentPaidSubscription = (profile: UserProfile | ServerProfile): boolean => {
+  if (profile.subscriptionStatus !== 'active' || !isPaidTier(profile.tier)) return false;
+  const expiryMs = profile.subscriptionExpiresAt ? Date.parse(profile.subscriptionExpiresAt) : 0;
+  const startMs = profile.subscriptionStart ? Date.parse(profile.subscriptionStart) : 0;
+  if (expiryMs) return Date.now() < expiryMs;
+  if (startMs) return Date.now() - startMs < SUBSCRIPTION_MS;
+  return true;
+};
+
+const paymentSubscriptionWindow = (payment: PaymentDoc) => {
+  const startMs = toMillis(payment.createdAt) || toMillis(payment.updatedAt) || Date.now();
+  const expiresMs = startMs + SUBSCRIPTION_MS;
+  return { startMs, expiresMs };
+};
+
+const restorePaidSubscriptionFromPayment = async (uid: string, profile: UserProfile): Promise<UserProfile> => {
+  if (hasCurrentPaidSubscription(profile)) return profile;
+
+  const payment = await findLatestSuccessfulPayment(uid, profile.phone);
+  if (!payment || !isPaidTier(payment.tier)) return profile;
+
+  const { startMs, expiresMs } = paymentSubscriptionWindow(payment);
+  if (Date.now() >= expiresMs) return profile;
+
+  const subscriptionStart = new Date(startMs).toISOString();
+  const subscriptionExpiresAt = new Date(expiresMs).toISOString();
+  const repairedProfile: UserProfile = {
+    ...profile,
+    uid,
+    tier: payment.tier,
+    subscriptionStatus: 'active',
+    subscriptionStart,
+    subscriptionExpiresAt,
+  };
+
+  await setDoc(doc(db, 'users', uid), {
+    tier: payment.tier,
+    subscriptionStatus: 'active',
+    subscriptionStart,
+    subscriptionExpiresAt,
+    lastPaymentId: payment.id,
+    pendingTier: null,
+    updatedAt: new Date().toISOString(),
+  }, { merge: true });
+
+  return repairedProfile;
+};
+
+const createPaidProfileFromPayment = async (phone: string, pin: string): Promise<UserProfile | null> => {
+  const normalizedPhone = normalizePhone(phone);
+  const payment = await findLatestSuccessfulPayment(phoneToId(normalizedPhone), normalizedPhone);
+  if (!payment || !isPaidTier(payment.tier)) return null;
+
+  const { startMs, expiresMs } = paymentSubscriptionWindow(payment);
+  if (Date.now() >= expiresMs) return null;
+
+  const uid = typeof payment.userId === 'string' && payment.userId.trim()
+    ? payment.userId.trim()
+    : phoneToId(normalizedPhone);
+  const now = new Date().toISOString();
+  const profile: UserProfile = {
+    uid,
+    name: 'FinWise User',
+    phone: normalizedPhone,
+    pin: hashPin(pin),
+    createdAt: now,
+    tier: payment.tier,
+    subscriptionStatus: 'active',
+    subscriptionStart: new Date(startMs).toISOString(),
+    subscriptionExpiresAt: new Date(expiresMs).toISOString(),
+  };
+
+  await setDoc(doc(db, 'users', uid), {
+    ...profile,
+    lastPaymentId: payment.id,
+    pendingTier: null,
+    recoveredFromPayment: true,
+    updatedAt: now,
+  }, { merge: true });
+
+  return profile;
 };
 
 export const useAuth = () => {
@@ -63,20 +264,26 @@ export const useAuth = () => {
     }
 
     if (!server && local.phone) {
-      const normalizedPhone = normalizePhone(local.phone);
-      const matches = await getDocs(query(collection(db, 'users'), where('phone', '==', normalizedPhone)));
-      if (!matches.empty) {
-        uid = matches.docs[0].id;
-        server = matches.docs[0].data() as ServerProfile;
+      const found = await findUserByPhone(local.phone);
+      if (found) {
+        uid = found.uid;
+        server = found.data as ServerProfile;
       }
     }
 
     if (!server) return local;
 
+    server = await restorePaidSubscriptionFromPayment(uid, {
+      ...local,
+      ...server,
+      uid,
+      tier: server.tier || local.tier || 'free',
+      phone: server.phone || local.phone || uid,
+    } as UserProfile);
+
     const paidTier = server.tier === 'silver' || server.tier === 'gold' || server.tier === 'platinum';
-    const expiryMs = server.subscriptionExpiresAt ? Date.parse(server.subscriptionExpiresAt) : 0;
-    const startMs = server.subscriptionStart ? Date.parse(server.subscriptionStart) : 0;
-    const isExpired = paidTier && ((expiryMs && Date.now() >= expiryMs) || (startMs && Date.now() - startMs >= SUBSCRIPTION_MS));
+    const hasSubscriptionDates = Boolean(server.subscriptionExpiresAt || server.subscriptionStart);
+    const isExpired = paidTier && hasSubscriptionDates && !hasCurrentPaidSubscription(server);
     if (isExpired) {
       const expiredAt = new Date().toISOString();
       await setDoc(doc(db, 'users', uid), {
@@ -122,8 +329,8 @@ export const useAuth = () => {
       }
 
       const uid = phoneToId(normalizedPhone);
-      const existing = await getDoc(doc(db, 'users', uid));
-      if (existing.exists()) {
+      const existing = await findUserByPhone(normalizedPhone);
+      if (existing) {
         setError('An account already exists for this phone number. Please log in.');
         return;
       }
@@ -143,9 +350,10 @@ export const useAuth = () => {
       };
 
       await setDoc(doc(db, 'users', uid), serverProfile);
-      saveProfile({ ...p, uid });
+      const restoredProfile = await restorePaidSubscriptionFromPayment(uid, { ...p, uid });
+      saveProfile(restoredProfile);
       localStorage.setItem(SESSION_KEY, 'true');
-      setProfile({ ...p, uid });
+      setProfile(restoredProfile);
       setIsUnlocked(true);
     } catch (e) {
       setError('Failed to create account. Check your connection.');
@@ -160,20 +368,19 @@ export const useAuth = () => {
     setError(null);
     try {
       const normalizedPhone = normalizePhone(phone);
-      const uid = phoneToId(normalizedPhone);
-      let resolvedUid = uid;
-      let snap = await getDoc(doc(db, 'users', uid));
-      let data: UserProfile | null = snap.exists() ? snap.data() as UserProfile : null;
+      const found = await findUserByPhone(normalizedPhone);
+      const resolvedUid = found?.uid ?? phoneToId(normalizedPhone);
+      const data: UserProfile | null = found?.data ?? null;
 
       if (!data) {
-        const matches = await getDocs(query(collection(db, 'users'), where('phone', '==', normalizedPhone)));
-        if (!matches.empty) {
-          resolvedUid = matches.docs[0].id;
-          data = matches.docs[0].data() as UserProfile;
+        const recoveredProfile = await createPaidProfileFromPayment(normalizedPhone, pin);
+        if (recoveredProfile) {
+          saveProfile(recoveredProfile);
+          localStorage.setItem(SESSION_KEY, 'true');
+          setProfile(recoveredProfile);
+          setIsUnlocked(true);
+          return true;
         }
-      }
-
-      if (!data) {
         setError('No account found for this phone number.');
         return false;
       }
@@ -181,9 +388,10 @@ export const useAuth = () => {
         setError('Wrong PIN.');
         return false;
       }
-      saveProfile({ ...data, uid: resolvedUid });
+      const restoredProfile = await restorePaidSubscriptionFromPayment(resolvedUid, { ...data, uid: resolvedUid });
+      saveProfile(restoredProfile);
       localStorage.setItem(SESSION_KEY, 'true');
-      setProfile({ ...data, uid: resolvedUid });
+      setProfile(restoredProfile);
       setIsUnlocked(true);
       return true;
     } catch (e) {

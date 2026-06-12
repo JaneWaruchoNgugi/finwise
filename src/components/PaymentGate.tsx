@@ -28,6 +28,13 @@ const TIER_META: Record<SubscriptionTier, { name: string; color: string; icon: s
   platinum: { name: 'Platinum', color: '#A78BFA', icon: '✦', features: ['Legacy Platinum access', 'Everything in Gold', 'Priority support'] },
 };
 
+const INTRO_PRICE_END_MS = Date.parse('2026-06-30T20:59:59.999+03:00');
+const currentTierPrice = (tier: SubscriptionTier): number => {
+  const introPrices: Record<SubscriptionTier, number> = { free: 0, silver: 10, gold: 20, platinum: 999 };
+  const standardPrices: Record<SubscriptionTier, number> = { free: 0, silver: 299, gold: 599, platinum: 999 };
+  return Date.now() <= INTRO_PRICE_END_MS ? introPrices[tier] : standardPrices[tier];
+};
+
 const SALE_TIERS: SubscriptionTier[] = ['silver', 'gold'];
 
 export const PaymentGate: React.FC<PaymentGateProps> = ({
@@ -135,7 +142,7 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
               <div style={{ ...S.planBoxName, color: tierColor }}>{tierName}</div>
               <div style={S.planBoxPrice}>
                 KES <span style={S.planBoxAmt}>{tierPrice.toLocaleString()}</span>
-                <span style={S.planBoxPer}>/month</span>
+                <span style={S.planBoxPer}>/first month</span>
               </div>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -264,7 +271,7 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                   {SALE_TIERS.filter(t => t !== tier).map(t => {
                     const m = TIER_META[t];
-                    const prices: Record<SubscriptionTier, number> = { free:0, silver:10, gold:10, platinum:999 };
+                    const prices: Record<SubscriptionTier, number> = { free: 0, silver: currentTierPrice('silver'), gold: currentTierPrice('gold'), platinum: currentTierPrice('platinum') };
                     return (
                       <div key={t} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 14px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
