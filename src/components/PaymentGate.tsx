@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { ArrowRight, Banknote, CreditCard, LockKeyhole, RotateCcw, Smartphone, Zap } from 'lucide-react';
 import { app } from '../lib/firebase';
 import type { SubscriptionTier } from '../types';
 
@@ -146,8 +147,15 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
               </div>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {['🔒 Secured by Safaricom Daraja', '📱 Instant activation', '↩ Cancel anytime', '🇰🇪 KES billing'].map(t => (
-                <div key={t} style={{ fontSize:13, color:'rgba(255,255,255,0.5)' }}>{t}</div>
+              {[
+                { icon: <Zap size={14} strokeWidth={2.3} />, label: 'Instant activation' },
+                { icon: <RotateCcw size={14} strokeWidth={2.3} />, label: 'Cancel anytime' },
+                { icon: <Banknote size={14} strokeWidth={2.3} />, label: 'KES billing' },
+              ].map((item) => (
+                <div key={item.label} style={{ fontSize:13, color:'rgba(255,255,255,0.5)', display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:14, height:14, flexShrink:0 }}>{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
               ))}
             </div>
           </div>
@@ -167,27 +175,27 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
               <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:20 }}>
                 <button className="pg-method" style={S.methodBtn} onClick={handleSendStk} disabled={loading || !userPhone}>
                   <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-                    <span style={{ fontSize:26 }}>📱</span>
+                    <Smartphone size={26} strokeWidth={2.1} color="#0F172A" />
                     <div>
                       <div style={S.methodName}>M-Pesa</div>
                       <div style={S.methodDesc}>{loading ? 'Sending STK request...' : 'STK Push to ' + userPhone}</div>
                     </div>
                   </div>
-                  <span style={{ fontSize:18, color:'#D97706' }}>→</span>
+                  <ArrowRight size={18} strokeWidth={2.4} color="#D97706" />
                 </button>
                 <button className="pg-method" style={S.methodBtn} onClick={() => setStep('card')}>
                   <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-                    <span style={{ fontSize:26 }}>💳</span>
+                    <CreditCard size={26} strokeWidth={2.1} color="#0F172A" />
                     <div>
                       <div style={S.methodName}>Visa / Mastercard</div>
                       <div style={S.methodDesc}>Pay with debit or credit card</div>
                     </div>
                   </div>
-                  <span style={{ fontSize:18, color:'#D97706' }}>→</span>
+                  <ArrowRight size={18} strokeWidth={2.4} color="#D97706" />
                 </button>
               </div>
               {error && <div style={S.err}>{error}</div>}
-              <div style={{ fontSize:12, color:'#9CA3AF', textAlign:'center' }}>🔐 All payments are encrypted and secure</div>
+              <div style={{ fontSize:12, color:'#9CA3AF', textAlign:'center', display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}><LockKeyhole size={13} strokeWidth={2.2} /> All payments are encrypted and secure</div>
             </div>
           )}
 

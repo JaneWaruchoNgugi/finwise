@@ -122,6 +122,7 @@ const App: React.FC = () => {
           hasProfile={!!auth.profile}
           onCreateProfile={auth.createProfile}
           onUnlock={auth.unlock}
+          onCheckPhoneExists={auth.checkPhoneExists}
           loading={auth.loading}
           error={auth.error}
           prefilledPhone={prefilledPhone}
@@ -140,6 +141,7 @@ const App: React.FC = () => {
           hasProfile={!!auth.profile}
           onCreateProfile={auth.createProfile}
           onUnlock={auth.unlock}
+          onCheckPhoneExists={auth.checkPhoneExists}
           loading={auth.loading}
           error={auth.error}
           prefilledPhone={prefilledPhone}

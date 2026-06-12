@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 
+import { normalizePhone } from '../hooks/useAuth';
 import type { SubscriptionTier } from '../types';
 
 interface AuthGateProps {
   hasProfile: boolean;
   onCreateProfile: (name: string, phone: string, pin: string, tier: SubscriptionTier) => void;
   onUnlock: (phone: string, pin: string) => Promise<boolean>;
+  onCheckPhoneExists: (phone: string) => Promise<boolean>;
   loading?: boolean;
   error?: string | null;
   prefilledPhone?: string;
@@ -65,7 +67,7 @@ const PinInput: React.FC<{
   );
 };
 
-export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile, onUnlock, loading, error: authError, prefilledPhone = '', tier = 'free', defaultMode }) => {
+export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile, onUnlock, onCheckPhoneExists, loading, error: authError, prefilledPhone = '', tier = 'free', defaultMode }) => {
   const [mode, setMode] = useState<'login' | 'signup'>(defaultMode ?? (hasProfile ? 'login' : 'signup'));
 
   // Signup
@@ -75,6 +77,8 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
   const [confirm, setConfirm] = useState('');
   const [step, setStep]       = useState<'info' | 'pin' | 'confirm'>('info');
   const [signupErr, setSignupErr] = useState('');
+  const [checkingPhone, setCheckingPhone] = useState(false);
+  const [banner, setBanner] = useState('');
 
   // Login
   const [loginPhone, setLoginPhone] = useState('');
@@ -97,6 +101,39 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
 
   const handleSignupPinComplete = () => {
     setTimeout(() => setStep('confirm'), 200);
+  };
+
+  const handleSignupInfoContinue = async () => {
+    if (loading || checkingPhone) return;
+    const nextPhone = phone.trim();
+    if (!name.trim() || !nextPhone) return;
+    setSignupErr('');
+    setBanner('');
+    if (!/^0\d{9}$/.test(normalizePhone(nextPhone))) {
+      setSignupErr('Enter a valid Kenyan phone number, for example 0712 345 678.');
+      return;
+    }
+    setCheckingPhone(true);
+    try {
+      const exists = await onCheckPhoneExists(nextPhone);
+      if (exists) {
+        const message = 'An account already exists for this phone number. Please log in instead.';
+        setSignupErr(message);
+        setBanner(message);
+        setLoginPhone(nextPhone);
+        setLoginPin('');
+        setLoginStep('phone');
+        setMode('login');
+        return;
+      }
+      setStep('pin');
+    } catch {
+      const message = 'Could not verify this phone number. Check your connection and try again.';
+      setSignupErr(message);
+      setBanner(message);
+    } finally {
+      setCheckingPhone(false);
+    }
   };
 
   const handleConfirmComplete = (v: string) => {
@@ -143,6 +180,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
               disabled={!loginPhone.trim() || loading} onClick={() => setLoginStep('pin')}>
               {loading ? 'Please wait…' : 'Continue →'}
             </button>
+            {banner && <div style={S.banner}>{banner}</div>}
             <div style={S.hint}>No account? <button style={S.link} onClick={switchToSignup}>Create one</button></div>
           </>
         )}
@@ -154,6 +192,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
             <p style={S.sub}>Enter your 4-digit PIN</p>
             <PinInput value={loginPin} onChange={v => { if (!loading) { setLoginPin(v); setLoginErr(''); } }} onComplete={handleLoginPinComplete} error={!!(loginErr || authError)} autoFocus={!loading} />
             {loading && <div style={S.loadingBox}><span style={S.spinner} /> Checking account...</div>}
+            {banner && <div style={S.banner}>{banner}</div>}
             {(loginErr || authError) && !loading && <div style={S.err}>{loginErr || authError}</div>}
             <button style={{ ...S.backLink, opacity: loading ? 0.45 : 1, cursor: loading ? 'not-allowed' : 'pointer' }} disabled={loading} onClick={() => { setLoginPin(''); setLoginErr(''); setLoginStep('phone'); }}>← Back</button>
             <div style={S.hint}>
@@ -179,14 +218,16 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
               <div style={S.field}>
                 <label style={S.label}>Phone Number</label>
                 <input style={S.input} type="tel" placeholder="e.g. 0712 345 678" value={phone}
-                  onChange={e => setPhone(e.target.value.replace(/[^\d\s+]/g, ''))}
-                  onKeyDown={e => e.key === 'Enter' && name.trim() && phone.trim() && setStep('pin')} />
+                  onChange={e => { setPhone(e.target.value.replace(/[^\d\s+]/g, '')); setSignupErr(''); }}
+                  onKeyDown={e => e.key === 'Enter' && handleSignupInfoContinue()} />
               </div>
             </div>
-            <button style={{ ...S.btn, opacity: !name.trim() || !phone.trim() || loading ? 0.5 : 1 }}
-              disabled={!name.trim() || !phone.trim() || loading} onClick={() => setStep('pin')}>
-              {loading ? 'Please wait…' : 'Continue →'}
+            <button style={{ ...S.btn, opacity: !name.trim() || !phone.trim() || loading || checkingPhone ? 0.5 : 1 }}
+              disabled={!name.trim() || !phone.trim() || loading || checkingPhone} onClick={handleSignupInfoContinue}>
+              {checkingPhone ? 'Checking number…' : loading ? 'Please wait…' : 'Continue →'}
             </button>
+            {banner && <div style={S.banner}>{banner}</div>}
+            {signupErr && !banner && <div style={S.err}>{signupErr}</div>}
             {authError && <div style={S.err}>{authError}</div>}
             <div style={S.hint}>Already have an account? <button style={S.link} onClick={switchToLogin}>Log in</button></div>
           </>
@@ -207,9 +248,10 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
           <>
             <div style={S.title}>Confirm PIN</div>
             <p style={S.sub}>Re-enter your {PIN_LENGTH}-digit PIN</p>
-            <PinInput value={confirm} onChange={v => { setConfirm(v); setSignupErr(''); }} onComplete={handleConfirmComplete} error={!!signupErr} autoFocus />
-            {signupErr && <div style={S.err}>{signupErr}</div>}
-            <button style={S.backLink} onClick={() => { setConfirm(''); setPin(''); setStep('pin'); }}>← Back</button>
+            <PinInput value={confirm} onChange={v => { if (!loading) { setConfirm(v); setSignupErr(''); } }} onComplete={handleConfirmComplete} error={!!(signupErr || authError)} autoFocus={!loading} />
+            {loading && <div style={S.loadingBox}><span style={S.spinner} /> Checking details...</div>}
+            {(signupErr || authError) && !loading && <div style={S.err}>{signupErr || authError}</div>}
+            <button style={{ ...S.backLink, opacity: loading ? 0.45 : 1, cursor: loading ? 'not-allowed' : 'pointer' }} disabled={loading} onClick={() => { setConfirm(''); setPin(''); setStep('pin'); }}>← Back</button>
           </>
         )}
 
@@ -235,6 +277,7 @@ const S: Record<string, React.CSSProperties> = {
   input:    { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', color: 'var(--text-1)', fontSize: 15, fontFamily: 'Karla, sans-serif', outline: 'none' },
   btn:      { width: '100%', padding: '13px', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', borderRadius: 12, fontWeight: 700, fontSize: 15, fontFamily: 'Karla, sans-serif', border: 'none', cursor: 'pointer' },
   err:      { fontSize: 13, color: 'var(--red)', background: 'var(--red-dim)', padding: '9px 12px', borderRadius: 8, marginTop: 4, textAlign: 'center' },
+  banner:   { fontSize: 13, color: '#92400E', background: 'rgba(251,191,36,0.16)', border: '1px solid rgba(245,158,11,0.35)', padding: '9px 12px', borderRadius: 8, marginTop: 4, textAlign: 'center', fontWeight: 700 },
   loadingBox: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, color: 'var(--gold)', background: 'rgba(255,127,0,0.1)', border: '1px solid rgba(255,127,0,0.18)', padding: '9px 12px', borderRadius: 8, marginTop: 4, textAlign: 'center', fontWeight: 700 },
   spinner:  { width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,127,0,0.25)', borderTopColor: 'var(--gold)', animation: 'authSpin 0.75s linear infinite' },
   hint:     { fontSize: 12, color: 'var(--text-3)', textAlign: 'center', marginTop: 16, lineHeight: 1.6 },

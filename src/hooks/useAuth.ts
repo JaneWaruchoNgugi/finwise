@@ -14,7 +14,7 @@ const hashPin = (pin: string): string => {
   return (h >>> 0).toString(36);
 };
 
-const normalizePhone = (phone: string): string => {
+export const normalizePhone = (phone: string): string => {
   const digits = phone.replace(/[^\d+]/g, '');
   if (/^0\d{9}$/.test(digits)) return digits;
   if (/^254\d{9}$/.test(digits)) return '0' + digits.slice(3);
@@ -55,20 +55,48 @@ const findUserByPhone = async (phone: string): Promise<{ uid: string; data: User
     ...variants,
     ...variants.map(v => Number(v.replace(/\D/g, ''))).filter(Number.isFinite),
   ]));
+  const compactIds = Array.from(new Set(variants.map(v => v.replace(/\s+/g, ''))));
+  const normalizedDigits = new Set(variants.flatMap(v => {
+    const d = v.replace(/\D/g, '');
+    return d ? [d, d.replace(/^254/, '0'), d.replace(/^0/, '254')] : [];
+  }));
+  const matchesPhone = (value: unknown) => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return false;
+    const cleaned = raw.replace(/\s+/g, '');
+    const digits = cleaned.replace(/\D/g, '');
+    return compactIds.includes(cleaned) || normalizedDigits.has(digits) || normalizedDigits.has(cleaned);
+  };
 
-  for (const id of variants.map(v => v.replace(/\s+/g, ''))) {
+  const directMatches = await Promise.all(compactIds.map(async (id) => {
     const snap = await getDoc(doc(db, 'users', id));
-    if (snap.exists()) return { uid: snap.id, data: snap.data() as UserProfile };
-  }
+    return snap.exists() ? { uid: snap.id, data: snap.data() as UserProfile } : null;
+  }));
+  const direct = directMatches.find(Boolean);
+  if (direct) return direct as { uid: string; data: UserProfile };
 
-  for (const value of lookupValues) {
+  const userQueries = await Promise.all(lookupValues.map(async (value) => {
     const matches = await getDocs(query(collection(db, 'users'), where('phone', '==', value)));
-    if (!matches.empty) return { uid: matches.docs[0].id, data: matches.docs[0].data() as UserProfile };
+    return matches.empty ? null : { uid: matches.docs[0].id, data: matches.docs[0].data() as UserProfile };
+  }));
+  const userMatch = userQueries.find(Boolean);
+  if (userMatch) return userMatch as { uid: string; data: UserProfile };
+
+  const allUsers = await getDocs(collection(db, 'users'));
+  for (const snap of allUsers.docs) {
+    const data = snap.data() as UserProfile;
+    if (matchesPhone(data.phone) || matchesPhone(snap.id) || matchesPhone((data as { phoneNumber?: unknown }).phoneNumber)) {
+      return { uid: snap.id, data };
+    }
   }
 
-  for (const value of lookupValues) {
+  const paymentQueries = await Promise.all(lookupValues.map(async (value) => {
     const payments = await getDocs(query(collection(db, 'payments'), where('phone', '==', value)));
-    for (const paymentSnap of payments.docs) {
+    return payments.docs;
+  }));
+
+  for (const docs of paymentQueries) {
+    for (const paymentSnap of docs) {
       const payment = paymentSnap.data() as { userId?: unknown };
       const userId = typeof payment.userId === 'string' ? payment.userId.trim() : '';
       if (!userId) continue;
@@ -314,6 +342,21 @@ export const useAuth = () => {
     refreshProfile().catch(e => console.error(e));
   }, [isUnlocked, refreshProfile]);
 
+  const checkPhoneExists = useCallback(async (phone: string): Promise<boolean> => {
+    const found = await findUserByPhone(phone);
+    if (found) return true;
+    // A phone with a recoverable paid subscription can log in even without a
+    // user doc (login rebuilds the profile from the payment), so signup must
+    // treat it as an existing account too.
+    const normalizedPhone = normalizePhone(phone);
+    const payment = await findLatestSuccessfulPayment(phoneToId(normalizedPhone), normalizedPhone);
+    if (payment && isPaidTier(payment.tier)) {
+      const { expiresMs } = paymentSubscriptionWindow(payment);
+      return Date.now() < expiresMs;
+    }
+    return false;
+  }, []);
+
   const createProfile = useCallback(async (name: string, phone: string, pin: string, tier: SubscriptionTier = 'free') => {
     setLoading(true);
     setError(null);
@@ -443,5 +486,5 @@ export const useAuth = () => {
     setIsUnlocked(false);
   }, []);
 
-  return { profile, isUnlocked, loading, error, createProfile, unlock, lock, deleteAccount, updateTier, refreshProfile };
+  return { profile, isUnlocked, loading, error, createProfile, unlock, lock, deleteAccount, updateTier, refreshProfile, checkPhoneExists };
 };
