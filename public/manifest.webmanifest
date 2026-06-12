@@ -1,0 +1,26 @@
+{
+  "name": "FinWise",
+  "short_name": "FinWise",
+  "description": "Smart money management for every Kenyan.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ff7f00",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/finwise-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

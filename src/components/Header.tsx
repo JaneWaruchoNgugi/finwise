@@ -428,7 +428,7 @@ export const Header: React.FC<HeaderProps> = ({
             const item = NAV_ITEMS.find(n => n.id === id)!;
             const Icon = item.icon;
 
-            const isCenter = (userTier === 'free' ? id==='goals':id === 'chat');
+            const isCenter = userTier === 'free' ? id === 'goals' : id === 'chat';
             return (
               <button
                 key={id}

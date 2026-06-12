@@ -20,10 +20,10 @@ import {
   ReceiptText,
   Shield,
   Sparkles,
-  Smartphone,
   Star,
   TrendingUp,
   WalletCards,
+  Download,
   XCircle,
 } from 'lucide-react';
 import type { SubscriptionTier, SubscriptionPlan } from '../types';
@@ -36,6 +36,7 @@ type LandingPlan = Omit<SubscriptionPlan, 'icon'> & {
 };
 
 const INTRO_END_LABEL = 'June 30, 2026';
+const ANDROID_APK_URL = '/downloads/finwise-android.apk';
 
 const PLANS: LandingPlan[] = [
   {
@@ -203,11 +204,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectTier, onLogin 
           <button style={S.primaryBtn} className="cta-btn" onClick={() => onSelectTier('gold')}>
             Start Gold for KES 20 <ChevronRight size={17} strokeWidth={2.5} />
           </button>
+          <a style={S.downloadBtn} className="cta-btn" href={ANDROID_APK_URL} download>
+            <Download size={17} strokeWidth={2.5} /> Install Android App
+          </a>
           <button style={S.secondaryBtn} className="cta-btn" onClick={() => document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' })}>
             View Plans <ChevronDown size={17} strokeWidth={2.5} />
           </button>
         </div>
         <div style={S.priceNote}>Silver is KES 10 and Gold is KES 20 for the first 30-day month. Standard pricing starts after {INTRO_END_LABEL}: Silver KES 299/month, Gold KES 599/month.</div>
+        <div style={S.installNote}>Android visitors can download the app directly. iPhone visitors can use Safari's Share button and choose Add to Home Screen.</div>
 
         <div className="hero-preview" style={S.previewShell}>
           <div style={S.previewTopBar}>
@@ -411,7 +416,9 @@ const S: Record<string, React.CSSProperties> = {
   heroBtns: { display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' },
   primaryBtn: { padding: '14px 30px', background: 'linear-gradient(135deg, #F59E0B, #D97706)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
   secondaryBtn: { padding: '14px 26px', background: '#fff', color: '#B45309', border: '1.5px solid rgba(217,119,6,0.28)', borderRadius: 12, fontWeight: 800, fontSize: 16, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  downloadBtn: { padding: '14px 24px', background: '#ECFDF5', color: '#047857', border: '1.5px solid rgba(5,150,105,0.24)', borderRadius: 12, fontWeight: 800, fontSize: 16, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none' },
   priceNote: { maxWidth: 760, fontSize: 13, color: '#6B7280', lineHeight: 1.6, background: '#fff', border: '1px solid rgba(10,22,40,0.08)', borderRadius: 12, padding: '10px 14px' },
+  installNote: { maxWidth: 720, textAlign: 'center', color: '#334155', fontSize: 13, lineHeight: 1.55, background: '#F8FAFC', border: '1px solid rgba(15,23,42,0.08)', borderRadius: 10, padding: '10px 14px' },
 
   previewShell: { marginTop: 22, background: '#0A1628', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 22, padding: 18, boxShadow: '0 28px 80px rgba(10,22,40,0.22)', textAlign: 'left' },
   previewTopBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' },
