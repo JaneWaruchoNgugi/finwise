@@ -127,7 +127,8 @@ export const AuthGate: React.FC<AuthGateProps> = ({ hasProfile, onCreateProfile,
         return;
       }
       setStep('pin');
-    } catch {
+    } catch (err) {
+      console.error('Phone existence check failed:', err);
       const message = 'Could not verify this phone number. Check your connection and try again.';
       setSignupErr(message);
       setBanner(message);
