@@ -11,13 +11,11 @@ const db = admin.firestore();
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
 
 // ── Newsletter / admin email sending ──────────────────────
-// Interim admin gate via a shared secret (set ADMIN_KEY in the functions env).
-// TODO: replace with `request.auth.token.admin` once Firebase Auth custom-token
-// lockdown ships.
-const ADMIN_KEY = process.env.ADMIN_KEY || '';
-const requireAdmin = (key: unknown) => {
-  if (!ADMIN_KEY || key !== ADMIN_KEY) {
-    throw new HttpsError('permission-denied', 'Invalid admin key.');
+// Admin-only gate: relies on the `admin` custom claim that adminSignIn mints on the
+// Firebase Auth session, so callers never pass a shared secret in the request body.
+const requireAdmin = (request: { auth?: { token?: Record<string, unknown> } }) => {
+  if (request.auth?.token?.admin !== true) {
+    throw new HttpsError('permission-denied', 'Admin only. Please sign in to the admin panel.');
   }
 };
 const buildTransport = () => nodemailer.createTransport({
@@ -612,8 +610,7 @@ DAILY HABITS: ${habitsCompleted}/${habitsArr.length} habits completed today
 
 // ── Newsletter: list subscribers (admin only) ─────────────
 export const getSubscribers = onCall({ cors: true }, async (request) => {
-  const { adminKey } = request.data as { adminKey?: string };
-  requireAdmin(adminKey);
+  requireAdmin(request);
   const snap = await db.collection('subscribers').where('active', '==', true).get();
   const emails = snap.docs
     .map(d => (d.data() as { email?: string }).email)
@@ -623,8 +620,8 @@ export const getSubscribers = onCall({ cors: true }, async (request) => {
 
 // ── Newsletter: send an update to all active subscribers ──
 export const sendNewsletter = onCall({ cors: true, timeoutSeconds: 540 }, async (request) => {
-  const { adminKey, subject, html } = request.data as { adminKey?: string; subject?: string; html?: string };
-  requireAdmin(adminKey);
+  requireAdmin(request);
+  const { subject, html } = request.data as { subject?: string; html?: string };
   if (!subject?.trim() || !html?.trim()) {
     throw new HttpsError('invalid-argument', 'subject and html are required.');
   }
