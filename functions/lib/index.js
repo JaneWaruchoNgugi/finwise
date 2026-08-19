@@ -22,13 +22,12 @@ admin.initializeApp();
 const db = admin.firestore();
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 // ── Newsletter / admin email sending ──────────────────────
-// Interim admin gate via a shared secret (set ADMIN_KEY in the functions env).
-// TODO: replace with `request.auth.token.admin` once Firebase Auth custom-token
-// lockdown ships.
-const ADMIN_KEY = process.env.ADMIN_KEY || '';
-const requireAdmin = (key) => {
-    if (!ADMIN_KEY || key !== ADMIN_KEY) {
-        throw new https_1.HttpsError('permission-denied', 'Invalid admin key.');
+// Admin-only gate: relies on the `admin` custom claim that adminSignIn mints on the
+// Firebase Auth session, so callers never pass a shared secret in the request body.
+const requireAdmin = (request) => {
+    var _a, _b;
+    if (((_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.admin) !== true) {
+        throw new https_1.HttpsError('permission-denied', 'Admin only. Please sign in to the admin panel.');
     }
 };
 const buildTransport = () => nodemailer.createTransport({
@@ -549,8 +548,7 @@ DAILY HABITS: ${habitsCompleted}/${habitsArr.length} habits completed today
 });
 // ── Newsletter: list subscribers (admin only) ─────────────
 exports.getSubscribers = (0, https_1.onCall)({ cors: true }, async (request) => {
-    const { adminKey } = request.data;
-    requireAdmin(adminKey);
+    requireAdmin(request);
     const snap = await db.collection('subscribers').where('active', '==', true).get();
     const emails = snap.docs
         .map(d => d.data().email)
@@ -559,8 +557,8 @@ exports.getSubscribers = (0, https_1.onCall)({ cors: true }, async (request) => 
 });
 // ── Newsletter: send an update to all active subscribers ──
 exports.sendNewsletter = (0, https_1.onCall)({ cors: true, timeoutSeconds: 540 }, async (request) => {
-    const { adminKey, subject, html } = request.data;
-    requireAdmin(adminKey);
+    requireAdmin(request);
+    const { subject, html } = request.data;
     if (!(subject === null || subject === void 0 ? void 0 : subject.trim()) || !(html === null || html === void 0 ? void 0 : html.trim())) {
         throw new https_1.HttpsError('invalid-argument', 'subject and html are required.');
     }

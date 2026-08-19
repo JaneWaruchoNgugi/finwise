@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { Mail, Send, Users, Check, AlertTriangle, KeyRound } from 'lucide-react';
+import { Mail, Send, Users, Check, AlertTriangle } from 'lucide-react';
 import { functions } from '../../../lib/firebase';
 
-const KEY_STORE = 'pf_admin_newsletter_key';
 const getSubscribers = httpsCallable(functions, 'getSubscribers');
 const sendNewsletter = httpsCallable(functions, 'sendNewsletter');
 
@@ -23,7 +22,6 @@ const toHtml = (subject: string, body: string) => `
   </div>`;
 
 export const AdminNewsletter: React.FC = () => {
-  const [adminKey, setAdminKey] = useState(() => localStorage.getItem(KEY_STORE) || '');
   const [count, setCount] = useState<number | null>(null);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -31,27 +29,24 @@ export const AdminNewsletter: React.FC = () => {
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const loadCount = useCallback(async () => {
-    if (!adminKey) return;
     try {
-      const res = await getSubscribers({ adminKey });
+      const res = await getSubscribers();
       setCount((res.data as { count: number }).count);
       setResult(null);
     } catch (e) {
       setCount(null);
-      setResult({ ok: false, msg: (e as Error).message || 'Could not load subscribers (check admin key).' });
+      setResult({ ok: false, msg: (e as Error).message || 'Could not load subscribers. Make sure you are signed in as an admin.' });
     }
-  }, [adminKey]);
+  }, []);
 
   useEffect(() => { loadCount(); }, [loadCount]);
-
-  const saveKey = () => { localStorage.setItem(KEY_STORE, adminKey.trim()); loadCount(); };
 
   const send = async () => {
     if (!subject.trim() || !body.trim()) return;
     if (!window.confirm(`Send this update to ${count ?? 'all'} subscribers?`)) return;
     setBusy(true); setResult(null);
     try {
-      const res = await sendNewsletter({ adminKey, subject: subject.trim(), html: toHtml(subject.trim(), body.trim()) });
+      const res = await sendNewsletter({ subject: subject.trim(), html: toHtml(subject.trim(), body.trim()) });
       const d = res.data as { sent: number; failed: number; total: number };
       setResult({ ok: true, msg: `Sent to ${d.sent} of ${d.total} subscribers${d.failed ? ` (${d.failed} failed)` : ''}.` });
       setSubject(''); setBody('');
@@ -67,17 +62,6 @@ export const AdminNewsletter: React.FC = () => {
       <div>
         <h1 style={S.h1}><Mail size={22} /> Newsletter</h1>
         <p style={S.sub}>Send product updates and money tips to everyone who subscribed on the landing page.</p>
-      </div>
-
-      {/* Admin key */}
-      <div style={S.card}>
-        <label style={S.label}><KeyRound size={14} /> Admin key</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input style={S.input} type="password" placeholder="Enter the ADMIN_KEY set in functions env"
-            value={adminKey} onChange={e => setAdminKey(e.target.value)} />
-          <button style={S.secondaryBtn} onClick={saveKey}>Save</button>
-        </div>
-        <div style={S.hint}>Required to send. This matches the <code>ADMIN_KEY</code> environment variable on your Cloud Functions.</div>
       </div>
 
       {/* Subscriber count */}
@@ -98,8 +82,8 @@ export const AdminNewsletter: React.FC = () => {
         <textarea style={{ ...S.input, minHeight: 160, resize: 'vertical', fontFamily: 'inherit' }}
           placeholder={'Write your update…\n\nBlank lines start a new paragraph.'} value={body} onChange={e => setBody(e.target.value)} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
-          <button style={{ ...S.sendBtn, opacity: busy || !subject.trim() || !body.trim() || !adminKey ? 0.55 : 1 }}
-            disabled={busy || !subject.trim() || !body.trim() || !adminKey} onClick={send}>
+          <button style={{ ...S.sendBtn, opacity: busy || !subject.trim() || !body.trim() ? 0.55 : 1 }}
+            disabled={busy || !subject.trim() || !body.trim()} onClick={send}>
             <Send size={16} /> {busy ? 'Sending…' : 'Send to all subscribers'}
           </button>
           {result && (
