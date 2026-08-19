@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { adminDb as db } from '../../../lib/firebase';
 import type { AdminUser, UserProfile, SubscriptionTier } from '../../../types';
 import { UserDetailDrawer } from './UserDetailDrawer';
 import { TIER_COLOR, TIER_LABEL, ACTIVE_TIERS, LEGACY_TIERS, GOLD_COMING_SOON } from '../../../lib/tiers';

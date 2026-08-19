@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { adminDb as db } from '../../../lib/firebase';
 import type { SubscriptionTier } from '../../../types';
 
 type PaymentStatus = 'all' | 'success' | 'paid' | 'pending' | 'failed';

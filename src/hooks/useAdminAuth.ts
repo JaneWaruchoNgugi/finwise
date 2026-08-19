@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { signInWithCustomToken, signOut, onIdTokenChanged } from 'firebase/auth';
 import { httpsCallable, type FunctionsError } from 'firebase/functions';
-import { db, auth, functions } from '../lib/firebase';
+import { adminDb as db, adminAuth as auth, adminFunctions as functions } from '../lib/firebase';
 import type { AdminUser, AdminRole } from '../types';
 
 const ADMIN_SESSION = 'finwise_admin_session';

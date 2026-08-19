@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { addDoc, collection, getDocs } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { adminDb as db } from '../../../lib/firebase';
 import type { AdminUser, AdminRole } from '../../../types';
 import { useAdminAuth } from '../../../hooks/useAdminAuth';
 

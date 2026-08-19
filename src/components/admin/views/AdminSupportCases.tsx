@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { addDoc, collection, doc, getDocs, updateDoc } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { adminDb as db } from '../../../lib/firebase';
 import type { AdminUser } from '../../../types';
 
 type CaseStatus = 'open' | 'in_progress' | 'waiting_customer' | 'resolved';

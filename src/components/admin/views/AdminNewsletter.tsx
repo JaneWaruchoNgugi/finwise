@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { Mail, Send, Users, Check, AlertTriangle } from 'lucide-react';
-import { functions } from '../../../lib/firebase';
+import { adminFunctions as functions } from '../../../lib/firebase';
 
 const getSubscribers = httpsCallable(functions, 'getSubscribers');
 const sendNewsletter = httpsCallable(functions, 'sendNewsletter');

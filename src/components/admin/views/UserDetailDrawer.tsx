@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Check, Ban, Trash2 } from 'lucide-react';
 import { addDoc, collection, getDocs, doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { adminDb as db } from '../../../lib/firebase';
 import type { AdminUser } from '../../../types';
 
 interface UserDetailDrawerProps {
