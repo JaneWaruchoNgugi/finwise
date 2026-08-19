@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { signInWithCustomToken, signOut } from 'firebase/auth';
+import { signInWithCustomToken, signOut, onIdTokenChanged } from 'firebase/auth';
 import { httpsCallable, type FunctionsError } from 'firebase/functions';
 import { db, auth, functions } from '../lib/firebase';
 import type { AdminUser, AdminRole } from '../types';
@@ -21,6 +21,27 @@ export const useAdminAuth = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The admin panel and the main app share one Firebase Auth session, and the locked
+  // Firestore rules require the `admin` claim to read admin data. If a regular-user
+  // sign-in replaced the session (or it expired), the stored "logged in" flag would
+  // point at a session with no admin claim → silently broken reads. Verify the LIVE
+  // token here and, if the claim is gone, drop back to the login screen.
+  useEffect(() => {
+    const unsub = onIdTokenChanged(auth, async (user) => {
+      if (!sessionStorage.getItem(ADMIN_SESSION)) return;
+      let hasClaim = false;
+      try {
+        const res = user ? await user.getIdTokenResult() : null;
+        hasClaim = res?.claims?.admin === true;
+      } catch { hasClaim = false; }
+      if (!hasClaim) {
+        sessionStorage.removeItem(ADMIN_SESSION);
+        setAdmin(null);
+      }
+    });
+    return unsub;
+  }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setLoading(true);

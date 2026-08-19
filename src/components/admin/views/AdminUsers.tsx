@@ -14,13 +14,19 @@ export const AdminUsers: React.FC<{ canEdit: boolean; admin: AdminUser }> = ({ c
   const [users, setUsers] = useState<UserRow[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<UserRow | null>(null);
 
   useEffect(() => {
-    getDocs(collection(db, 'users')).then(snap => {
-      setUsers(snap.docs.map(d => ({ uid: d.id, ...d.data() }) as UserRow));
-      setLoading(false);
-    });
+    getDocs(collection(db, 'users'))
+      .then(snap => setUsers(snap.docs.map(d => ({ uid: d.id, ...d.data() }) as UserRow)))
+      .catch((err: { code?: string }) => {
+        console.error('Failed to load users:', err);
+        setError(err?.code === 'permission-denied'
+          ? 'Your admin session lost its admin access (it can be replaced by signing in as a regular user in the same browser, or it expired). Please sign out and sign back into the admin panel.'
+          : 'Could not load users. Check your connection and try again.');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const changeTier = async (uid: string, tier: SubscriptionTier) => {
@@ -33,6 +39,13 @@ export const AdminUsers: React.FC<{ canEdit: boolean; admin: AdminUser }> = ({ c
   );
 
   if (loading) return <div style={{ color: 'var(--text-3)', padding: 32 }}>Loading…</div>;
+  if (error) return (
+    <div style={{ padding: 32, maxWidth: 520 }}>
+      <div style={{ color: 'var(--red, #DC2626)', background: 'var(--red-dim, #FEF2F2)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 10, padding: '14px 16px', fontSize: 14, lineHeight: 1.5 }}>
+        {error}
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
