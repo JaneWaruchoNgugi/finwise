@@ -11,7 +11,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminSignIn = exports.sendNewsletter = exports.getSubscribers = exports.chatWithAdvisor = exports.confirmSubscriptionPayment = exports.getPaymentStatus = exports.stkCallback = exports.deposit = exports.initiateStkPush = void 0;
+exports.adminSignIn = exports.sendVerificationEmail = exports.sendNewsletter = exports.getSubscribers = exports.chatWithAdvisor = exports.confirmSubscriptionPayment = exports.getPaymentStatus = exports.stkCallback = exports.deposit = exports.initiateStkPush = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -593,6 +593,50 @@ exports.sendNewsletter = (0, https_1.onCall)({ cors: true, timeoutSeconds: 540 }
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     return { total: emails.length, sent, failed };
+});
+// ── Branded email verification via Brevo ──────────────────
+// Firebase's default sender (noreply@<project>.firebaseapp.com) has no SPF/DKIM/DMARC
+// aligned to your domain, so those emails often land in spam. This sends the same
+// verification link through your authenticated SMTP domain (Brevo) for inbox delivery.
+const verificationEmailHtml = (name, link) => `
+  <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0F1B2D">
+    <div style="background:linear-gradient(135deg,#F97316,#EA580C);padding:20px 24px;border-radius:12px 12px 0 0">
+      <span style="color:#fff;font-size:20px;font-weight:800">PesaFlow</span>
+    </div>
+    <div style="padding:24px;border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px">
+      <h2 style="margin:0 0 12px;font-size:19px">Confirm your email</h2>
+      <p style="line-height:1.6;color:#374151">Hi ${name}, welcome to PesaFlow! Tap the button below to verify your email and activate your account.</p>
+      <p style="text-align:center;margin:26px 0">
+        <a href="${link}" style="background:#EA580C;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;display:inline-block">Verify my email</a>
+      </p>
+      <p style="line-height:1.6;color:#6B7280;font-size:13px">If the button doesn't work, copy and paste this link into your browser:<br/><a href="${link}" style="color:#EA580C;word-break:break-all">${link}</a></p>
+      <p style="margin-top:24px;font-size:12px;color:#9CA3AF">If you didn't create a PesaFlow account, you can safely ignore this email.</p>
+    </div>
+  </div>`;
+exports.sendVerificationEmail = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a, _b;
+    const email = (_b = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.email;
+    if (!request.auth || !email) {
+        throw new https_1.HttpsError('unauthenticated', 'You must be signed in to verify your email.');
+    }
+    if (request.auth.token.email_verified === true) {
+        return { alreadyVerified: true };
+    }
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+        throw new https_1.HttpsError('failed-precondition', 'Email sending is not configured.');
+    }
+    const link = await admin.auth().generateEmailVerificationLink(email);
+    const name = (request.auth.token.name || '').split(' ')[0] || 'there';
+    const transport = buildTransport();
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    await transport.sendMail({
+        from,
+        to: email,
+        subject: 'Verify your email for PesaFlow',
+        html: verificationEmailHtml(name, link),
+        text: `Hi ${name},\n\nConfirm your email to activate your PesaFlow account:\n${link}\n\nIf you didn't create an account, you can ignore this email.`,
+    });
+    return { sent: true };
 });
 // ── Admin auth: verify admin email + password, mint an admin-claim token ──
 exports.adminSignIn = (0, https_1.onCall)({ cors: true }, async (request) => {

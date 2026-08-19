@@ -14,8 +14,9 @@ import {
   deleteUser,
   type User,
 } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
-import { db, auth } from '../lib/firebase';
+import { db, auth, functions } from '../lib/firebase';
 import { isValidEmail, isValidPin, isValidKenyanPhone, normalizePhone } from '../lib/authValidation';
 import { mapAuthError } from '../lib/authErrors';
 import type { UserProfile } from '../types';
@@ -40,6 +41,20 @@ const loadUserDoc = async (uid: string): Promise<UserProfile | null> => {
 
 const isGoogleUser = (user: User): boolean =>
   user.providerData.some((p) => p.providerId === 'google.com');
+
+const sendVerificationEmailFn = httpsCallable(functions, 'sendVerificationEmail');
+
+// Sends the verification link via our Brevo-backed Cloud Function (authenticated
+// sender domain → inbox, not spam). Falls back to Firebase's default sender if the
+// function is unavailable, so verification never silently fails.
+const sendVerification = async (user: User): Promise<void> => {
+  try {
+    await sendVerificationEmailFn();
+  } catch (e) {
+    console.warn('Branded verification email unavailable; using default sender:', e);
+    await sendEmailVerification(user);
+  }
+};
 
 export const useAuth = () => {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -93,7 +108,7 @@ export const useAuth = () => {
         createdAt: now,
       };
       await setDoc(doc(db, 'users', cred.user.uid), p);
-      await sendEmailVerification(cred.user);
+      await sendVerification(cred.user);
       setProfile(p);
       setStatus('unverified');
     } catch (e) {
@@ -179,7 +194,7 @@ export const useAuth = () => {
 
   const resendVerification = useCallback(async () => {
     if (auth.currentUser) {
-      try { await sendEmailVerification(auth.currentUser); }
+      try { await sendVerification(auth.currentUser); }
       catch (e) { setError(mapAuthError(e, 'Could not resend the email. Try again shortly.')); }
     }
   }, []);
