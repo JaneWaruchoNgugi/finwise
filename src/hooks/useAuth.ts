@@ -39,9 +39,6 @@ const loadUserDoc = async (uid: string): Promise<UserProfile | null> => {
   return snap.exists() ? (snap.data() as UserProfile) : null;
 };
 
-const isGoogleUser = (user: User): boolean =>
-  user.providerData.some((p) => p.providerId === 'google.com');
-
 const sendVerificationEmailFn = httpsCallable(functions, 'sendVerificationEmail');
 
 // Sends the verification link via our Brevo-backed Cloud Function (authenticated
@@ -66,7 +63,10 @@ export const useAuth = () => {
   // Derives the correct gate state from a Firebase user + their Firestore doc.
   const resolveStatus = useCallback(async (user: User | null) => {
     if (!user) { setProfile(null); setStatus('signed-out'); return; }
-    if (!isGoogleUser(user) && !user.emailVerified) { setStatus('unverified'); return; }
+    // Email verification is currently NOT required (no authenticated sending domain
+    // yet). Re-enable by gating unverified email/PIN users here once a domain is set up:
+    //   const isGoogle = user.providerData.some(p => p.providerId === 'google.com');
+    //   if (!isGoogle && !user.emailVerified) { setStatus('unverified'); return; }
     const p = await loadUserDoc(user.uid);
     setProfile(p);
     setStatus(p?.phone ? 'ready' : 'needs-phone');
@@ -108,9 +108,9 @@ export const useAuth = () => {
         createdAt: now,
       };
       await setDoc(doc(db, 'users', cred.user.uid), p);
-      await sendVerification(cred.user);
+      // No email verification for now (no authenticated sending domain) — let them in.
       setProfile(p);
-      setStatus('unverified');
+      setStatus('ready');
     } catch (e) {
       setError(mapAuthError(e, 'Could not create account. Check your connection.'));
     } finally { setLoading(false); }
