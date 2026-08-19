@@ -106,7 +106,47 @@ NEWSLETTER & EMAIL
   "subscribers" collection (public can subscribe; list is private).
 - Admins send updates from the Admin → Newsletter section, backed
   by Cloud Functions (getSubscribers / sendNewsletter) using SMTP
-  (Brevo/SendGrid/Gmail). Gated by an ADMIN_KEY.
+  (Brevo). Gated by the admin's Firebase "admin" claim — no shared
+  key is entered; being signed in to the admin panel is enough.
+
+----------------------------------------------------------------
+EMAIL DELIVERABILITY & VERIFICATION — REMAINING SETUP
+----------------------------------------------------------------
+STATUS: Email verification is currently DISABLED. New email + PIN
+sign-ups get instant access and NO confirmation link is sent. This
+is a temporary measure until a real (owned) sending domain exists.
+
+WHY: Firebase's default sender (noreply@<project>.firebaseapp.com)
+and the interim Brevo "from" address (a gmail.com address) are not
+domain-authenticated, so verification/reset emails land in spam.
+Mailbox providers require the sending domain to publish aligned
+SPF, DKIM and DMARC — which needs a domain you own (a Vercel-
+provided domain is not enough).
+
+TO FINISH (once a custom domain is purchased):
+1. Authenticate the domain in Brevo (Settings -> Senders, domains,
+   IPs -> Domains -> Add a domain). Add the DKIM (CNAME) and
+   SPF/brevo-code (TXT) records Brevo shows into the domain's DNS.
+2. Add a DMARC record at the domain's DNS (start relaxed):
+   TXT  _dmarc  ->  v=DMARC1; p=none; rua=mailto:you@yourdomain
+   Tighten to p=quarantine, then p=reject, once mail looks clean.
+3. Point the sender at the domain: set SMTP_FROM in functions/.env
+   to e.g.  PesaFlow <noreply@yourdomain>  then redeploy functions
+   (env is read at deploy time):  firebase deploy --only functions
+4. Re-enable verification in src/hooks/useAuth.ts:
+   - resolveStatus(): uncomment the emailVerified gate (a commented
+     one-liner is already there for this).
+   - signUpWithEmail(): call sendVerification(cred.user) again and
+     set status 'unverified' instead of 'ready'.
+   The sender is already built: Cloud Function sendVerificationEmail
+   generates the link (Admin SDK) and mails it via Brevo; useAuth
+   already falls back to it. The "Verify your email" screen plus the
+   resend/refresh flows are still present in the UI.
+5. Route the other emails through the same domain too: move the
+   PIN-reset email (currently Firebase's default
+   sendPasswordResetEmail) to a Brevo Cloud Function the same way,
+   and update the newsletter's SMTP_FROM to the authenticated
+   domain.
 
 ----------------------------------------------------------------
 ADMIN PANEL
