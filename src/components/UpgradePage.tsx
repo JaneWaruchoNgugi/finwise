@@ -1,157 +1,119 @@
 import React from 'react';
-import { BarChart3, Bell, Bot, Check, Crown, Landmark, Lock, ReceiptText, Shield, Sparkles, Target, TrendingUp } from 'lucide-react';
+import { BarChart3, Bell, Bot, Check, Crown, Sparkles, TrendingUp } from 'lucide-react';
 import type { SubscriptionTier } from '../types';
 
-interface Plan {
-  tier: SubscriptionTier;
-  name: string;
-  price: number;
-  standardPrice: number;
-  color: string;
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  tagline: string;
-  popular?: boolean;
-  features: string[];
-}
-
-const PLANS: Plan[] = [
-  {
-    tier: 'silver',
-    name: 'Silver',
-    price: 10,
-    standardPrice: 299,
-    color: '#94A3B8',
-    icon: Shield,
-    tagline: 'Planning essentials',
-    features: ['Bills & recurring payments', 'Savings goals with deadlines', 'Emergency fund tracker', 'Net worth calculator'],
-  },
-  {
-    tier: 'gold',
-    name: 'Gold',
-    price: 20,
-    standardPrice: 599,
-    color: '#D97706',
-    icon: Crown,
-    tagline: 'Complete premium access',
-    popular: true,
-    features: ['Everything in Silver', 'Investment portfolio', 'Spending insights & analytics', 'AI Chat advisor', 'Alerts & SOS system', 'Priority support', 'CSV exports'],
-  },
+// Everything except the Gold tools is free for everyone right now.
+// Gold is a preview of what is launching soon — not yet purchasable.
+const CORE_FREE = [
+  'Expense tracking & categorisation',
+  'Bills & recurring payments',
+  'Savings goals with deadlines',
+  'Emergency fund tracker',
+  'Net Worth calculator',
+  'Dashboard & monthly summary',
 ];
 
-const LOCKED_FEATURES = [
+const GOLD_FEATURES = [
+  'Investment portfolio tracking',
+  'Spending insights & analytics',
+  'AI Chat financial advisor',
+  'Alerts & SOS emergency system',
+  'Priority support',
+  'CSV data exports',
+];
+
+const COMING_SOON = [
   { icon: TrendingUp, label: 'Investments' },
-  { icon: Target, label: 'Goals' },
-  { icon: ReceiptText, label: 'Bills' },
-  { icon: Landmark, label: 'Net Worth' },
-  { icon: Shield, label: 'Emergency' },
   { icon: BarChart3, label: 'Insights' },
   { icon: Bot, label: 'AI Chat' },
   { icon: Bell, label: 'Alerts' },
 ];
+
+const GOLD = '#D97706';
 
 interface UpgradePageProps {
   currentTier: SubscriptionTier;
   onSelectPlan: (tier: SubscriptionTier) => void;
 }
 
-export const UpgradePage: React.FC<UpgradePageProps> = ({ currentTier, onSelectPlan }) => {
-  const hasFullAccess = currentTier === 'gold' || currentTier === 'platinum';
-  const currentPlanName = currentTier === 'platinum' ? 'Legacy Platinum' : currentTier.charAt(0).toUpperCase() + currentTier.slice(1);
-  const visiblePlans = hasFullAccess ? PLANS.filter(plan => plan.tier === 'gold') : PLANS;
-
+export const UpgradePage: React.FC<UpgradePageProps> = () => {
   return (
     <div style={S.page} className="animate-in">
       <style>{`
         .up-hero { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:20px; align-items:center; width:100%; max-width:980px; }
-        .up-locked { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:100%; max-width:760px; }
-        .up-plans { display:grid; grid-template-columns:repeat(2,minmax(0,360px)); justify-content:center; gap:18px; width:100%; max-width:780px; }
-        .up-plan-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); }
-        .up-plan-btn:hover { filter:brightness(1.06); transform:translateY(-1px); }
+        .up-coming { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:100%; max-width:760px; }
         @media(max-width:760px){
           .up-hero { grid-template-columns:1fr; text-align:left; }
-          .up-locked { grid-template-columns:repeat(4,1fr); gap:8px; }
-          .up-plans { grid-template-columns:1fr; }
         }
-        @media(max-width:410px){ .up-locked { grid-template-columns:repeat(2,1fr); } }
+        @media(max-width:410px){ .up-coming { grid-template-columns:repeat(2,1fr); } }
       `}</style>
 
       <section className="up-hero" style={S.hero}>
         <div>
-          <div style={S.badge}><Sparkles size={13} /> {hasFullAccess ? 'Plan active' : 'Upgrade your plan'}</div>
-          <h1 style={S.title}>{hasFullAccess ? 'Your Gold tools are unlocked' : 'Choose the tools that match your money goals'}</h1>
+          <div style={S.badge}><Sparkles size={13} /> Everything unlocked — free</div>
+          <h1 style={S.title}>You have every core tool, completely free</h1>
           <p style={S.sub}>
-            {hasFullAccess
-              ? <>You are currently on <strong style={{ color: 'var(--text-1)' }}>{currentPlanName}</strong>. You already have access to planning, insights, AI coaching, alerts, and priority support.</>
-              : <>You are currently on <strong style={{ color: 'var(--text-1)', textTransform: 'capitalize' }}>{currentTier}</strong>. Upgrade to unlock planning, insights, AI coaching, alerts, and priority support.</>}
+            Expense tracking, bills, goals, emergency fund and net worth are all free while we grow.
+            <strong style={{ color: 'var(--text-1)' }}> Gold</strong> — advanced insights, AI coaching, investment tracking and alerts — is launching soon.
           </p>
         </div>
         <div style={S.summaryCard}>
-          <div style={S.summaryLabel}>{hasFullAccess ? 'Gold access' : 'Premium unlocks'}</div>
-          <div style={S.summaryValue}>{hasFullAccess ? 'On' : '8'}</div>
-          <div style={S.summaryText}>{hasFullAccess ? 'premium tools active' : 'additional money tools'}</div>
+          <div style={S.summaryLabel}>Gold access</div>
+          <div style={S.summaryValue}>Soon</div>
+          <div style={S.summaryText}>premium intelligence</div>
         </div>
       </section>
 
-      <section className="up-locked" aria-label={hasFullAccess ? 'Included premium features' : 'Locked premium features'}>
-        {LOCKED_FEATURES.map(feature => {
+      <section style={S.freeCard}>
+        <div style={S.freeCardTitle}>Free for everyone, right now</div>
+        <div style={S.freeGrid}>
+          {CORE_FREE.map(feature => (
+            <div key={feature} style={S.freeItem}>
+              <Check size={14} strokeWidth={2.6} style={{ color: '#16A34A', flexShrink: 0 }} />
+              <span>{feature}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="up-coming" aria-label="Gold features coming soon">
+        {COMING_SOON.map(feature => {
           const Icon = feature.icon;
           return (
-            <div key={feature.label} style={hasFullAccess ? { ...S.lockedItem, borderColor: 'var(--border-acc)', background: 'var(--gold-dim)' } : S.lockedItem}>
-              <Icon size={21} strokeWidth={2.1} style={{ color: 'var(--gold)' }} />
-              <span style={S.lockedLabel}>{feature.label}</span>
-              {hasFullAccess ? <Check size={11} style={S.lockBadge} /> : <Lock size={10} style={S.lockBadge} />}
+            <div key={feature.label} style={S.comingItem}>
+              <Icon size={21} strokeWidth={2.1} style={{ color: GOLD }} />
+              <span style={S.comingLabel}>{feature.label}</span>
+              <span style={S.comingBadge}>Soon</span>
             </div>
           );
         })}
       </section>
 
-      <section className="up-plans">
-        {visiblePlans.map(plan => {
-          const Icon = plan.icon;
-          const isCurrent = currentTier === plan.tier || (hasFullAccess && plan.tier === 'gold');
-          return (
-            <article
-              key={plan.tier}
-              className="up-plan-card"
-              style={{
-                ...S.planCard,
-                border: plan.popular ? `2px solid ${plan.color}` : '1px solid var(--border)',
-                boxShadow: plan.popular ? `0 16px 44px ${plan.color}22` : 'var(--shadow-card)',
-              }}
-            >
-              {plan.popular && <div style={S.popularBadge}>Most popular</div>}
-              <div style={{ ...S.planIcon, color: plan.color, background: `${plan.color}16`, borderColor: `${plan.color}35` }}>
-                <Icon size={26} strokeWidth={2.1} />
-              </div>
-              <div style={{ ...S.planName, color: plan.color }}>{plan.name}</div>
-              <div style={S.planTagline}>{plan.tagline}</div>
-              <div style={S.planPrice}>
-                <span style={S.planAmt}>KES {plan.price.toLocaleString()}</span>
-                <span style={S.planPer}>/first month</span>
-                <div style={S.planStandard}>Then KES {plan.standardPrice.toLocaleString()}/mo after June 30, 2026</div>
-              </div>
-              <div style={S.featureList}>
-                {plan.features.map(feature => (
-                  <div key={feature} style={S.featureItem}>
-                    <Check size={14} strokeWidth={2.6} style={{ color: plan.color, flexShrink: 0 }} />
-                    <span>{feature}</span>
-                  </div>
-                ))}
-              </div>
-              <button
-                className="up-plan-btn"
-                onClick={() => onSelectPlan(plan.tier)}
-                disabled={isCurrent}
-                style={{ ...S.planBtn, opacity: isCurrent ? 0.6 : 1, cursor: isCurrent ? 'default' : 'pointer' }}
-              >
-                {isCurrent ? (hasFullAccess ? 'Active plan' : 'Current plan') : `Upgrade to ${plan.name}`}
-              </button>
-            </article>
-          );
-        })}
-      </section>
+      <article style={S.planCard}>
+        <div style={S.popularBadge}>Coming soon</div>
+        <div style={{ ...S.planIcon, color: GOLD, background: `${GOLD}16`, borderColor: `${GOLD}35` }}>
+          <Crown size={26} strokeWidth={2.1} />
+        </div>
+        <div style={{ ...S.planName, color: GOLD }}>Gold</div>
+        <div style={S.planTagline}>Complete premium access and intelligence</div>
+        <div style={S.planPrice}>
+          <span style={S.launchPill}>Premium</span>
+          <span style={S.planAmt}>Launching soon</span>
+        </div>
+        <div style={S.featureList}>
+          {GOLD_FEATURES.map(feature => (
+            <div key={feature} style={S.featureItem}>
+              <Check size={14} strokeWidth={2.6} style={{ color: GOLD, flexShrink: 0 }} />
+              <span>{feature}</span>
+            </div>
+          ))}
+        </div>
+        <button className="up-plan-btn" disabled style={{ ...S.planBtn, opacity: 0.7, cursor: 'default' }}>
+          Coming soon
+        </button>
+      </article>
 
-      <div style={S.note}><Lock size={13} /> Secure payment via M-Pesa. Launch pricing applies to the first 30-day month until June 30, 2026.</div>
+      <div style={S.note}><Sparkles size={13} /> No payment needed today — the whole app is free while we build Gold.</div>
     </div>
   );
 };
@@ -166,20 +128,23 @@ const S: Record<string, React.CSSProperties> = {
   summaryLabel: { fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 800 },
   summaryValue: { fontFamily: 'Cormorant Garamond, serif', fontSize: 44, fontWeight: 700, color: 'var(--gold)', lineHeight: 1 },
   summaryText: { fontSize: 12, color: 'var(--text-2)' },
-  lockedItem: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '13px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, position: 'relative', minHeight: 78, boxShadow: 'var(--shadow)' },
-  lockedLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-2)', textAlign: 'center' },
-  lockBadge: { position: 'absolute', top: 7, right: 7, color: 'var(--gold)' },
-  planCard: { background: 'var(--bg-card)', borderRadius: 18, padding: '25px 22px 22px', display: 'flex', flexDirection: 'column', alignItems: 'stretch', textAlign: 'left', position: 'relative', transition: 'transform .15s, box-shadow .15s' },
+  freeCard: { width: '100%', maxWidth: 760, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 22px', boxShadow: 'var(--shadow-card)' },
+  freeCardTitle: { fontSize: 13, fontWeight: 800, color: 'var(--text-1)', marginBottom: 14 },
+  freeGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: '10px 18px' },
+  freeItem: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.35 },
+  comingItem: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '13px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, position: 'relative', minHeight: 78, boxShadow: 'var(--shadow)' },
+  comingLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-2)', textAlign: 'center' },
+  comingBadge: { position: 'absolute', top: 7, right: 7, fontSize: 9, fontWeight: 800, color: '#fff', background: 'var(--gold)', borderRadius: 999, padding: '2px 6px', textTransform: 'uppercase' },
+  planCard: { width: '100%', maxWidth: 380, background: 'var(--bg-card)', borderRadius: 18, padding: '25px 22px 22px', display: 'flex', flexDirection: 'column', alignItems: 'stretch', textAlign: 'left', position: 'relative', border: `2px solid ${GOLD}`, boxShadow: `0 16px 44px ${GOLD}22` },
   popularBadge: { position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', fontSize: 10, fontWeight: 900, color: '#fff', background: 'var(--btn-gradient)', padding: '5px 13px', borderRadius: 999, textTransform: 'uppercase', whiteSpace: 'nowrap' },
   planIcon: { width: 52, height: 52, borderRadius: 14, border: '1px solid', display: 'grid', placeItems: 'center', marginBottom: 14 },
   planName: { fontFamily: 'Cormorant Garamond, serif', fontSize: 27, fontWeight: 700 },
   planTagline: { fontSize: 12, color: 'var(--text-3)', marginTop: 2 },
-  planPrice: { margin: '15px 0 18px' },
-  planAmt: { fontFamily: 'Cormorant Garamond, serif', fontSize: 30, fontWeight: 700, color: 'var(--text-1)' },
-  planPer: { fontSize: 13, color: 'var(--text-3)', marginLeft: 4 },
-  planStandard: { fontSize: 12, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.45 },
+  planPrice: { margin: '15px 0 18px', display: 'flex', flexDirection: 'column', gap: 6 },
+  launchPill: { alignSelf: 'flex-start', fontSize: 10, fontWeight: 800, color: GOLD, background: `${GOLD}18`, borderRadius: 999, padding: '3px 9px', textTransform: 'uppercase' },
+  planAmt: { fontFamily: 'Cormorant Garamond, serif', fontSize: 26, fontWeight: 700, color: 'var(--text-1)' },
   featureList: { display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 22, flex: 1 },
   featureItem: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: 'var(--text-2)', padding: '8px 0', borderBottom: '1px solid var(--border)', lineHeight: 1.35 },
-  planBtn: { width: '100%', padding: 13, background: 'var(--btn-gradient)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, fontFamily: 'DM Sans, sans-serif', transition: 'filter .15s, transform .15s' },
+  planBtn: { width: '100%', padding: 13, background: 'var(--btn-gradient)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, fontFamily: 'DM Sans, sans-serif' },
   note: { display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text-3)', textAlign: 'center', padding: '0 16px' },
 };

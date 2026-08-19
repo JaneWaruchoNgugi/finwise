@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { Check, Repeat, ChevronUp, ChevronDown, X, BarChart3 } from 'lucide-react';
 import type { Investment, InvestmentCategory, InvestmentStatus, InvestmentSummary } from '../types';
 import { INVESTMENT_META, RISK_COLORS, projectGrowth } from '../utils/investments';
 import { formatCurrency } from '../utils/expenses';
+import { IconSelect } from './ui/IconSelect';
 
 // ─────────────────────────────────────────────────────────────
 // Summary bar
@@ -81,12 +83,12 @@ export const InvestmentForm: React.FC<FormProps> = ({ onAdd }) => {
 
   const meta = INVESTMENT_META[category];
   const risk = RISK_COLORS[meta.riskLevel];
+  const CatIcon = meta.icon;
 
   return (
     <div style={S.formCard}>
       <style>{`
         .inv-input:focus { border-color: var(--border-focus) !important; outline: none; }
-        .inv-select:focus { border-color: var(--border-focus) !important; outline: none; }
         .inv-add-btn { transition: opacity 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease; }
         .inv-add-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 28px var(--gold-glow) !important; }
         .inv-add-btn:active:not(:disabled) { transform: translateY(0); }
@@ -94,12 +96,12 @@ export const InvestmentForm: React.FC<FormProps> = ({ onAdd }) => {
 
       <div style={S.formHeader}>
         <span style={S.formTitle}>Log Investment</span>
-        {submitted && <span style={S.successTag}>✓ Investment logged!</span>}
+        {submitted && <span style={S.successTag}><Check size={12} strokeWidth={3} /> Investment logged!</span>}
       </div>
 
       {/* Category description strip */}
       <div style={{ ...S.catStrip, borderColor: `${meta.color}30`, background: `${meta.color}08` }}>
-        <span style={S.catStripIcon}>{meta.icon}</span>
+        <span style={S.catStripIcon}><CatIcon size={22} strokeWidth={2} style={{ color: meta.color }} /></span>
         <div style={S.catStripText}>
           <span style={{ ...S.catStripName, color: meta.color }}>{meta.label}</span>
           <span style={S.catStripDesc}>{meta.description}</span>
@@ -138,17 +140,12 @@ export const InvestmentForm: React.FC<FormProps> = ({ onAdd }) => {
 
         <div style={S.field}>
           <label style={S.label}>Category</label>
-          <select
-            className="inv-select"
-            style={S.select}
+          <IconSelect
             value={category}
-            onChange={(e) => handleCategoryChange(e.target.value as InvestmentCategory)}
-          >
-            {(Object.entries(INVESTMENT_META) as [InvestmentCategory, typeof INVESTMENT_META[InvestmentCategory]][])
-              .map(([key, m]) => (
-                <option key={key} value={key}>{m.icon} {m.label}</option>
-              ))}
-          </select>
+            onChange={(v) => handleCategoryChange(v)}
+            options={(Object.entries(INVESTMENT_META) as [InvestmentCategory, typeof INVESTMENT_META[InvestmentCategory]][])
+              .map(([key, m]) => ({ value: key, label: m.label, icon: m.icon, color: m.color }))}
+          />
         </div>
 
         <div style={S.field}>
@@ -250,9 +247,10 @@ export const InvestmentList: React.FC<ListProps> = ({ investments, onRemove, onU
           <button
             style={{ ...S.filterBtn, ...(filter === 'recurring' ? S.filterBtnActive : {}) }}
             onClick={() => setFilter('recurring')}
-          >↻ Recurring</button>
+          ><span style={S.btnInline}><Repeat size={12} strokeWidth={2.4} /> Recurring</span></button>
           {presentCategories.map((cat) => {
             const m = INVESTMENT_META[cat];
+            const FilterIcon = m.icon;
             return (
               <button
                 key={cat}
@@ -262,7 +260,7 @@ export const InvestmentList: React.FC<ListProps> = ({ investments, onRemove, onU
                 }}
                 onClick={() => setFilter(cat)}
               >
-                {m.icon} {m.label}
+                <span style={S.btnInline}><FilterIcon size={12} strokeWidth={2.2} /> {m.label}</span>
               </button>
             );
           })}
@@ -271,7 +269,7 @@ export const InvestmentList: React.FC<ListProps> = ({ investments, onRemove, onU
 
       {filtered.length === 0 ? (
         <div style={S.emptyList}>
-          <div style={S.emptyIcon}>📊</div>
+          <div style={S.emptyIcon}><BarChart3 size={40} strokeWidth={1.6} style={{ color: 'var(--text-3)' }} /></div>
           <div style={S.emptyTitle}>No investments logged yet</div>
           <div style={S.emptyText}>Start tracking your SACCOs, MMFs, stocks and more above.</div>
         </div>
@@ -279,6 +277,7 @@ export const InvestmentList: React.FC<ListProps> = ({ investments, onRemove, onU
         <div style={S.list}>
           {filtered.map((inv) => {
             const meta  = INVESTMENT_META[inv.category];
+            const Icon  = meta.icon;
             const ss    = STATUS_STYLES[inv.status];
             const risk  = RISK_COLORS[meta.riskLevel];
             const expanded = expandedId === inv.id;
@@ -293,7 +292,7 @@ export const InvestmentList: React.FC<ListProps> = ({ investments, onRemove, onU
                 >
                   {/* Icon */}
                   <div style={{ ...S.invIcon, background: `${meta.color}15`, border: `1px solid ${meta.color}25` }}>
-                    {meta.icon}
+                    <Icon size={20} strokeWidth={2} style={{ color: meta.color }} />
                   </div>
 
                   {/* Info */}
@@ -306,7 +305,7 @@ export const InvestmentList: React.FC<ListProps> = ({ investments, onRemove, onU
                       <span style={S.dot}>·</span>
                       <span style={{ color: risk.text }}>{meta.riskLevel} risk</span>
                       {inv.isRecurring && (
-                        <><span style={S.dot}>·</span><span style={{ color: 'var(--blue)' }}>↻ Monthly</span></>
+                        <><span style={S.dot}>·</span><span style={{ color: 'var(--blue)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Repeat size={11} strokeWidth={2.4} /> Monthly</span></>
                       )}
                       {inv.notes && (
                         <><span style={S.dot}>·</span><span style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>{inv.notes}</span></>
@@ -338,7 +337,7 @@ export const InvestmentList: React.FC<ListProps> = ({ investments, onRemove, onU
                     onClick={() => setExpandedId(expanded ? null : inv.id)}
                     title="View projections"
                   >
-                    {expanded ? '▲' : '▼'}
+                    {expanded ? <ChevronUp size={14} strokeWidth={2.4} /> : <ChevronDown size={14} strokeWidth={2.4} />}
                   </button>
 
                   {/* Remove */}
@@ -347,7 +346,7 @@ export const InvestmentList: React.FC<ListProps> = ({ investments, onRemove, onU
                     style={S.removeBtn}
                     onClick={() => onRemove(inv.id)}
                     aria-label="Remove"
-                  >✕</button>
+                  ><X size={14} strokeWidth={2.4} /></button>
                 </div>
 
                 {/* Expanded projection row */}
@@ -448,11 +447,13 @@ export const PortfolioAllocation: React.FC<AllocationProps> = ({ summary }) => {
 
         {/* Legend */}
         <div style={S.allocLegend}>
-          {arcs.map(({ cat, amount, pct, meta }) => (
+          {arcs.map(({ cat, amount, pct, meta }) => {
+            const LegendIcon = meta.icon;
+            return (
             <div key={cat} style={S.allocItem}>
               <div style={{ ...S.allocDot, background: meta.color }} />
               <div style={S.allocItemInfo}>
-                <span style={S.allocCatName}>{meta.icon} {meta.label}</span>
+                <span style={{ ...S.allocCatName, display: 'inline-flex', alignItems: 'center', gap: 6 }}><LegendIcon size={13} strokeWidth={2.1} style={{ color: meta.color }} /> {meta.label}</span>
                 <div style={S.allocBarTrack}>
                   <div style={{ ...S.allocBarFill, width: `${pct * 100}%`, background: meta.color }} />
                 </div>
@@ -462,7 +463,8 @@ export const PortfolioAllocation: React.FC<AllocationProps> = ({ summary }) => {
                 <span style={S.allocAmt}>{formatCurrency(amount, 'KES')}</span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -503,6 +505,7 @@ const S: Record<string, React.CSSProperties> = {
   listTitle:  { fontFamily: 'Cormorant Garamond, serif', fontSize: 20, fontWeight: 600, color: 'var(--text-1)' },
   filterRow:  { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
   filterBtn:  { padding: '6px 14px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-3)', fontSize: 12, fontFamily: 'Karla, sans-serif', cursor: 'pointer' },
+  btnInline:  { display: 'inline-flex', alignItems: 'center', gap: 5 },
   filterBtnActive: { background: 'var(--gold-dim)', border: '1px solid var(--border-acc)', color: 'var(--gold)' },
   emptyList:  { textAlign: 'center' as const, padding: '40px 20px' },
   emptyIcon:  { fontSize: 40, marginBottom: 12 },

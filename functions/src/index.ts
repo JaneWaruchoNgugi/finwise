@@ -1,13 +1,59 @@
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
 import axios from 'axios';
 import * as http from 'http';
+import * as nodemailer from 'nodemailer';
+import * as crypto from 'crypto';
 
 admin.initializeApp();
 const db = admin.firestore();
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
+
+// ── Newsletter / admin email sending ──────────────────────
+// Interim admin gate via a shared secret (set ADMIN_KEY in the functions env).
+// TODO: replace with `request.auth.token.admin` once Firebase Auth custom-token
+// lockdown ships.
+const ADMIN_KEY = process.env.ADMIN_KEY || '';
+const requireAdmin = (key: unknown) => {
+  if (!ADMIN_KEY || key !== ADMIN_KEY) {
+    throw new HttpsError('permission-denied', 'Invalid admin key.');
+  }
+};
+const buildTransport = () => nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: Number(process.env.SMTP_PORT) === 465,
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+});
+
+// Legacy client hashes (djb2) — used only to verify + migrate old admin accounts.
+const legacyHashPin = (pin: string): string => {
+  let h = 5381;
+  for (let i = 0; i < pin.length; i++) h = (h * 33) ^ pin.charCodeAt(i);
+  return (h >>> 0).toString(36);
+};
+const legacyHashPassword = legacyHashPin;
+
+// Salt generator (used for admin password upgrades).
+const genSalt = () => crypto.randomBytes(16).toString('hex');
+
+// Strong PASSWORD hashing (admins): scrypt — a slow, brute-force-resistant KDF
+// built into Node (no extra dependency), the right choice for real passwords.
+const scryptHashPw = (password: string, salt: string): string =>
+  crypto.scryptSync(password, salt, 64).toString('hex');
+const timingSafeHexEqual = (a: string, b: string): boolean => {
+  try {
+    const ba = Buffer.from(a, 'hex');
+    const bb = Buffer.from(b, 'hex');
+    return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+  } catch { return false; }
+};
+const timingSafeStrEqual = (a: string, b: string): boolean => {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+};
 
 // ── Helpers ───────────────────────────────────────────────
 const fmt = (amount: number, currency = 'KES') =>
@@ -127,7 +173,7 @@ async function initiateSubscriptionPayment(input: {
   }
 
   const payload = {
-    name: input.name?.trim() || 'FinWise ' + input.tier,
+    name: input.name?.trim() || 'PesaFlow ' + input.tier,
     phone,
     amount: expectedAmount,
     trigger: 'R1R2',
@@ -148,7 +194,7 @@ async function initiateSubscriptionPayment(input: {
   });
 
   await db.collection('users').doc(userId).set({
-    phone: userId,
+    phone,
     pendingTier: input.tier,
     subscriptionStatus: 'pending_payment',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -361,44 +407,11 @@ export const confirmSubscriptionPayment = onCall({ cors: true }, async (request)
   return { status: 'pending', message: 'Payment is still awaiting provider confirmation.' };
 });
 
-export const expireSubscriptions = onSchedule({ schedule: 'every 24 hours', timeZone: 'Africa/Nairobi' }, async () => {
-  const nowIso = new Date().toISOString();
-  const snap = await db.collection('users')
-    .where('subscriptionStatus', '==', 'active')
-    .where('subscriptionExpiresAt', '<=', nowIso)
-    .get();
+// NOTE: expireSubscriptions (a scheduled onSchedule job) was removed because paid
+// subscriptions are currently disabled (Free + Gold-coming-soon), and the Cloud
+// Scheduler API it required was blocking deploys. Re-add it when paid tiers launch.
 
-  if (snap.empty) return;
-
-  let batch = db.batch();
-  let count = 0;
-  let total = 0;
-
-  for (const userDoc of snap.docs) {
-    const data = userDoc.data();
-    batch.set(userDoc.ref, {
-      tier: 'free',
-      previousTier: data.tier || null,
-      subscriptionStatus: 'expired',
-      subscriptionExpiredAt: nowIso,
-      pendingTier: null,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-    count += 1;
-    total += 1;
-
-    if (count === 450) {
-      await batch.commit();
-      batch = db.batch();
-      count = 0;
-    }
-  }
-
-  if (count > 0) await batch.commit();
-  console.log('Expired subscriptions', { total });
-});
-
-// ── 4. FinWise AI Advisor Chat ────────────────────────────
+// ── 4. PesaFlow AI Advisor Chat ────────────────────────────
 export const chatWithAdvisor = onCall({ cors: true }, async (request) => {
   const { userId, message, conversationHistory = [] } = request.data as {
     userId: string;
@@ -512,7 +525,7 @@ export const chatWithAdvisor = onCall({ cors: true }, async (request) => {
   const monthsCovered = totalExpenses > 0 ? (efCurrent / totalExpenses).toFixed(1) : '0';
 
   // ── Build system prompt ───────────────────────────────────
-  const systemPrompt = `You are FinWise AI — a finance-only personal financial advisor for Kenyan users. You have LIVE access to the user's complete financial data pulled directly from their FinWise account. Answer only questions about budgeting, spending, bills, savings, debt, emergency funds, investments, goals, net worth, insurance, taxes, and Kenyan money decisions. If asked about anything outside finance, politely refuse and redirect to a finance question. Give warm, specific, actionable advice tailored to the Kenyan context. Always reference relevant Kenyan financial instruments where appropriate: SACCOs, M-Pesa, M-Shwari, KCB M-Pesa, Fuliza, NSE, T-Bills/Bonds via CBK, MMFs, HELB, SHA/NHIF, NSSF, KRA iTax, Equity Bank, Co-op Bank, Family Bank, Faulu MFB.
+  const systemPrompt = `You are PesaFlow AI — a finance-only personal financial advisor for Kenyan users. You have LIVE access to the user's complete financial data pulled directly from their PesaFlow account. Answer only questions about budgeting, spending, bills, savings, debt, emergency funds, investments, goals, net worth, insurance, taxes, and Kenyan money decisions. If asked about anything outside finance, politely refuse and redirect to a finance question. Give warm, specific, actionable advice tailored to the Kenyan context. Always reference relevant Kenyan financial instruments where appropriate: SACCOs, M-Pesa, M-Shwari, KCB M-Pesa, Fuliza, NSE, T-Bills/Bonds via CBK, MMFs, HELB, SHA/NHIF, NSSF, KRA iTax, Equity Bank, Co-op Bank, Family Bank, Faulu MFB.
 
 Be concise and conversational (2–4 short paragraphs max). Use bullet points for lists. Always end with ONE bold specific action the user can take TODAY.
 
@@ -595,4 +608,88 @@ DAILY HABITS: ${habitsCompleted}/${habitsArr.length} habits completed today
   });
 
   return { reply, userMsgId, aiMsgId };
+});
+
+// ── Newsletter: list subscribers (admin only) ─────────────
+export const getSubscribers = onCall({ cors: true }, async (request) => {
+  const { adminKey } = request.data as { adminKey?: string };
+  requireAdmin(adminKey);
+  const snap = await db.collection('subscribers').where('active', '==', true).get();
+  const emails = snap.docs
+    .map(d => (d.data() as { email?: string }).email)
+    .filter((e): e is string => !!e);
+  return { count: emails.length, emails };
+});
+
+// ── Newsletter: send an update to all active subscribers ──
+export const sendNewsletter = onCall({ cors: true, timeoutSeconds: 540 }, async (request) => {
+  const { adminKey, subject, html } = request.data as { adminKey?: string; subject?: string; html?: string };
+  requireAdmin(adminKey);
+  if (!subject?.trim() || !html?.trim()) {
+    throw new HttpsError('invalid-argument', 'subject and html are required.');
+  }
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+    throw new HttpsError('failed-precondition', 'SMTP is not configured (set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM).');
+  }
+
+  const snap = await db.collection('subscribers').where('active', '==', true).get();
+  const emails = snap.docs
+    .map(d => (d.data() as { email?: string }).email)
+    .filter((e): e is string => !!e);
+
+  const transport = buildTransport();
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  let sent = 0;
+  let failed = 0;
+  // Send individually so recipients never see each other's addresses.
+  for (const to of emails) {
+    try {
+      await transport.sendMail({ from, to, subject, html });
+      sent++;
+    } catch (err) {
+      console.error('newsletter send failed for', to, err);
+      failed++;
+    }
+  }
+
+  await db.collection('newsletters').add({
+    subject,
+    html,
+    total: emails.length,
+    sent,
+    failed,
+    sentAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { total: emails.length, sent, failed };
+});
+
+// ── Admin auth: verify admin email + password, mint an admin-claim token ──
+export const adminSignIn = onCall({ cors: true }, async (request) => {
+  const { email, password } = request.data as { email?: string; password?: string };
+  if (!email || !password) throw new HttpsError('invalid-argument', 'Email and password are required.');
+
+  const snap = await db.collection('admins').get();
+  const match = snap.docs.find(d => (d.data() as { email?: string }).email === email);
+  if (!match) throw new HttpsError('permission-denied', 'Invalid credentials.');
+
+  const data = match.data() as { role?: string; passwordHash?: string; passwordScrypt?: string; passwordSalt?: string };
+  let ok = false;
+  if (data.passwordScrypt && data.passwordSalt) {
+    ok = timingSafeHexEqual(data.passwordScrypt, scryptHashPw(password, data.passwordSalt));
+  } else if (data.passwordHash) {
+    // Legacy djb2 hash — verify (timing-safe), then transparently upgrade to scrypt.
+    if (timingSafeStrEqual(data.passwordHash, legacyHashPassword(password))) {
+      ok = true;
+      const salt = genSalt();
+      await match.ref.set({ passwordScrypt: scryptHashPw(password, salt), passwordSalt: salt }, { merge: true });
+    }
+  }
+  if (!ok) throw new HttpsError('permission-denied', 'Invalid credentials.');
+
+  const adminUid = 'admin_' + match.id;
+  const token = await admin.auth().createCustomToken(adminUid, { admin: true, role: data.role || 'support' });
+  const { passwordHash: _pw, passwordScrypt: _ps, passwordSalt: _psa, ...safe } = match.data() as Record<string, unknown>;
+  return { token, admin: { id: match.id, ...safe } };
 });

@@ -1,490 +1,236 @@
-import { useState, useCallback, useEffect } from 'react';
-import { collection, query, where, getDocs, getDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import type { UserProfile, SubscriptionTier } from '../types';
+import { useState, useEffect, useCallback } from 'react';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import {
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithCredential,
+  GoogleAuthProvider,
+  updateProfile,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signOut,
+  deleteUser,
+  type User,
+} from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { db, auth } from '../lib/firebase';
+import { isValidEmail, isValidPin, isValidKenyanPhone, normalizePhone } from '../lib/authValidation';
+import { mapAuthError } from '../lib/authErrors';
+import type { UserProfile } from '../types';
 
-const SESSION_KEY = 'finwise_session';
+// 'loading'   — resolving the persisted Firebase session
+// 'signed-out'— no user
+// 'unverified'— email/PIN user who has not verified their email
+// 'needs-phone'— signed in (usually via Google) but no phone on file for M-Pesa
+// 'ready'     — fully signed in with a complete profile
+export type AuthStatus = 'loading' | 'signed-out' | 'unverified' | 'needs-phone' | 'ready';
+
+// The sync layer (lib/sync.ts, hooks/useExpenses.ts) reads the uid from this cached
+// profile synchronously on mount — so it must survive reloads. Written whenever the
+// profile changes; cleared only on explicit logout/delete (never on the initial null,
+// which would wipe the cache before the sync layer reads it on a fresh page load).
 const PROFILE_KEY = 'finwise_auth_profile';
-const SUBSCRIPTION_DAYS = 30;
-const SUBSCRIPTION_MS = SUBSCRIPTION_DAYS * 24 * 60 * 60 * 1000;
 
-const hashPin = (pin: string): string => {
-  let h = 5381;
-  for (let i = 0; i < pin.length; i++) h = (h * 33) ^ pin.charCodeAt(i);
-  return (h >>> 0).toString(36);
+const loadUserDoc = async (uid: string): Promise<UserProfile | null> => {
+  const snap = await getDoc(doc(db, 'users', uid));
+  return snap.exists() ? (snap.data() as UserProfile) : null;
 };
 
-export const normalizePhone = (phone: string): string => {
-  const digits = phone.replace(/[^\d+]/g, '');
-  if (/^0\d{9}$/.test(digits)) return digits;
-  if (/^254\d{9}$/.test(digits)) return '0' + digits.slice(3);
-  if (/^\+254\d{9}$/.test(digits)) return '0' + digits.slice(4);
-  return phone.replace(/\s+/g, '');
-};
-
-const phoneToId = (phone: string) => normalizePhone(phone).replace(/\s+/g, '');
-
-const phoneVariants = (phone: string): string[] => {
-  const raw = String(phone || '').trim();
-  const compact = raw.replace(/\s+/g, '');
-  const digitsOnly = compact.replace(/\D/g, '');
-  const normalized = normalizePhone(raw);
-  const variants = new Set<string>([raw, compact, normalized, normalized.replace(/\s+/g, '')].filter(Boolean));
-
-  if (/^0\d{9}$/.test(normalized)) {
-    variants.add('254' + normalized.slice(1));
-    variants.add('+254' + normalized.slice(1));
-  }
-  if (/^254\d{9}$/.test(digitsOnly)) {
-    variants.add(digitsOnly);
-    variants.add('+' + digitsOnly);
-    variants.add('0' + digitsOnly.slice(3));
-  }
-  if (/^\d{9}$/.test(digitsOnly)) {
-    variants.add('0' + digitsOnly);
-    variants.add('254' + digitsOnly);
-    variants.add('+254' + digitsOnly);
-  }
-
-  return Array.from(variants);
-};
-
-const findUserByPhone = async (phone: string): Promise<{ uid: string; data: UserProfile } | null> => {
-  const variants = phoneVariants(phone);
-  const lookupValues: unknown[] = Array.from(new Set([
-    ...variants,
-    ...variants.map(v => Number(v.replace(/\D/g, ''))).filter(Number.isFinite),
-  ]));
-  const compactIds = Array.from(new Set(variants.map(v => v.replace(/\s+/g, ''))));
-  const normalizedDigits = new Set(variants.flatMap(v => {
-    const d = v.replace(/\D/g, '');
-    return d ? [d, d.replace(/^254/, '0'), d.replace(/^0/, '254')] : [];
-  }));
-  const matchesPhone = (value: unknown) => {
-    const raw = String(value ?? '').trim();
-    if (!raw) return false;
-    const cleaned = raw.replace(/\s+/g, '');
-    const digits = cleaned.replace(/\D/g, '');
-    return compactIds.includes(cleaned) || normalizedDigits.has(digits) || normalizedDigits.has(cleaned);
-  };
-
-  const directMatches = await Promise.all(compactIds.map(async (id) => {
-    const snap = await getDoc(doc(db, 'users', id));
-    return snap.exists() ? { uid: snap.id, data: snap.data() as UserProfile } : null;
-  }));
-  const direct = directMatches.find(Boolean);
-  if (direct) return direct as { uid: string; data: UserProfile };
-
-  const userQueries = await Promise.all(lookupValues.map(async (value) => {
-    const matches = await getDocs(query(collection(db, 'users'), where('phone', '==', value)));
-    return matches.empty ? null : { uid: matches.docs[0].id, data: matches.docs[0].data() as UserProfile };
-  }));
-  const userMatch = userQueries.find(Boolean);
-  if (userMatch) return userMatch as { uid: string; data: UserProfile };
-
-  const allUsers = await getDocs(collection(db, 'users'));
-  for (const snap of allUsers.docs) {
-    const data = snap.data() as UserProfile;
-    if (matchesPhone(data.phone) || matchesPhone(snap.id) || matchesPhone((data as { phoneNumber?: unknown }).phoneNumber)) {
-      return { uid: snap.id, data };
-    }
-  }
-
-  const paymentQueries = await Promise.all(lookupValues.map(async (value) => {
-    const payments = await getDocs(query(collection(db, 'payments'), where('phone', '==', value)));
-    return payments.docs;
-  }));
-
-  for (const docs of paymentQueries) {
-    for (const paymentSnap of docs) {
-      const payment = paymentSnap.data() as { userId?: unknown };
-      const userId = typeof payment.userId === 'string' ? payment.userId.trim() : '';
-      if (!userId) continue;
-      const userSnap = await getDoc(doc(db, 'users', userId));
-      if (userSnap.exists()) return { uid: userSnap.id, data: userSnap.data() as UserProfile };
-    }
-  }
-
-  return null;
-};
-
-const loadLocalProfile = (): UserProfile | null => {
-  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); }
-  catch { return null; }
-};
-
-type ServerProfile = Partial<UserProfile> & { subscriptionStatus?: string; pendingTier?: SubscriptionTier | null };
-type PaymentDoc = {
-  id: string;
-  userId?: string;
-  phone?: string;
-  tier?: SubscriptionTier;
-  status?: string;
-  createdAt?: unknown;
-  updatedAt?: unknown;
-};
-
-const saveProfile = (profile: UserProfile) => {
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-};
-
-const isPaidTier = (tier: unknown): tier is Exclude<SubscriptionTier, 'free'> =>
-  tier === 'silver' || tier === 'gold' || tier === 'platinum';
-
-const isSuccessfulPaymentStatus = (status: unknown) =>
-  status === 'success' || status === 'paid';
-
-const toMillis = (value: unknown): number => {
-  if (!value) return 0;
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') return Date.parse(value) || 0;
-  if (typeof value === 'object') {
-    const maybeTimestamp = value as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
-    if (typeof maybeTimestamp.toMillis === 'function') return maybeTimestamp.toMillis();
-    if (typeof maybeTimestamp.toDate === 'function') return maybeTimestamp.toDate().getTime();
-    if (typeof maybeTimestamp.seconds === 'number') return maybeTimestamp.seconds * 1000;
-  }
-  return 0;
-};
-
-const phoneLookupValues = (phone: string): unknown[] => {
-  const variants = phoneVariants(phone);
-  return Array.from(new Set([
-    ...variants,
-    ...variants.map(v => Number(v.replace(/\D/g, ''))).filter(Number.isFinite),
-  ]));
-};
-
-const findLatestSuccessfulPayment = async (uid: string, phone?: string): Promise<PaymentDoc | null> => {
-  const payments = new Map<string, PaymentDoc>();
-  const addMatches = (docs: Awaited<ReturnType<typeof getDocs>>) => {
-    docs.forEach(snap => {
-      const data = snap.data() as Omit<PaymentDoc, 'id'>;
-      if (isSuccessfulPaymentStatus(data.status) && isPaidTier(data.tier)) {
-        payments.set(snap.id, { id: snap.id, ...data });
-      }
-    });
-  };
-
-  if (uid) {
-    addMatches(await getDocs(query(collection(db, 'payments'), where('userId', '==', uid))));
-  }
-
-  for (const value of phone ? phoneLookupValues(phone) : []) {
-    addMatches(await getDocs(query(collection(db, 'payments'), where('phone', '==', value))));
-  }
-
-  return Array.from(payments.values()).sort((a, b) => {
-    const aTime = toMillis(a.createdAt) || toMillis(a.updatedAt);
-    const bTime = toMillis(b.createdAt) || toMillis(b.updatedAt);
-    return bTime - aTime;
-  })[0] ?? null;
-};
-
-const hasCurrentPaidSubscription = (profile: UserProfile | ServerProfile): boolean => {
-  if (profile.subscriptionStatus !== 'active' || !isPaidTier(profile.tier)) return false;
-  const expiryMs = profile.subscriptionExpiresAt ? Date.parse(profile.subscriptionExpiresAt) : 0;
-  const startMs = profile.subscriptionStart ? Date.parse(profile.subscriptionStart) : 0;
-  if (expiryMs) return Date.now() < expiryMs;
-  if (startMs) return Date.now() - startMs < SUBSCRIPTION_MS;
-  return true;
-};
-
-const paymentSubscriptionWindow = (payment: PaymentDoc) => {
-  const startMs = toMillis(payment.createdAt) || toMillis(payment.updatedAt) || Date.now();
-  const expiresMs = startMs + SUBSCRIPTION_MS;
-  return { startMs, expiresMs };
-};
-
-const restorePaidSubscriptionFromPayment = async (uid: string, profile: UserProfile): Promise<UserProfile> => {
-  if (hasCurrentPaidSubscription(profile)) return profile;
-
-  const payment = await findLatestSuccessfulPayment(uid, profile.phone);
-  if (!payment || !isPaidTier(payment.tier)) return profile;
-
-  const { startMs, expiresMs } = paymentSubscriptionWindow(payment);
-  if (Date.now() >= expiresMs) return profile;
-
-  const subscriptionStart = new Date(startMs).toISOString();
-  const subscriptionExpiresAt = new Date(expiresMs).toISOString();
-  const repairedProfile: UserProfile = {
-    ...profile,
-    uid,
-    tier: payment.tier,
-    subscriptionStatus: 'active',
-    subscriptionStart,
-    subscriptionExpiresAt,
-  };
-
-  await setDoc(doc(db, 'users', uid), {
-    tier: payment.tier,
-    subscriptionStatus: 'active',
-    subscriptionStart,
-    subscriptionExpiresAt,
-    lastPaymentId: payment.id,
-    pendingTier: null,
-    updatedAt: new Date().toISOString(),
-  }, { merge: true });
-
-  return repairedProfile;
-};
-
-const createPaidProfileFromPayment = async (phone: string, pin: string): Promise<UserProfile | null> => {
-  const normalizedPhone = normalizePhone(phone);
-  const payment = await findLatestSuccessfulPayment(phoneToId(normalizedPhone), normalizedPhone);
-  if (!payment || !isPaidTier(payment.tier)) return null;
-
-  const { startMs, expiresMs } = paymentSubscriptionWindow(payment);
-  if (Date.now() >= expiresMs) return null;
-
-  const uid = typeof payment.userId === 'string' && payment.userId.trim()
-    ? payment.userId.trim()
-    : phoneToId(normalizedPhone);
-  const now = new Date().toISOString();
-  const profile: UserProfile = {
-    uid,
-    name: 'FinWise User',
-    phone: normalizedPhone,
-    pin: hashPin(pin),
-    createdAt: now,
-    tier: payment.tier,
-    subscriptionStatus: 'active',
-    subscriptionStart: new Date(startMs).toISOString(),
-    subscriptionExpiresAt: new Date(expiresMs).toISOString(),
-  };
-
-  await setDoc(doc(db, 'users', uid), {
-    ...profile,
-    lastPaymentId: payment.id,
-    pendingTier: null,
-    recoveredFromPayment: true,
-    updatedAt: now,
-  }, { merge: true });
-
-  return profile;
-};
+const isGoogleUser = (user: User): boolean =>
+  user.providerData.some((p) => p.providerId === 'google.com');
 
 export const useAuth = () => {
-  const [profile, setProfile]       = useState<UserProfile | null>(loadLocalProfile);
-  const [isUnlocked, setIsUnlocked] = useState<boolean>(localStorage.getItem(SESSION_KEY) === 'true');
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState<string | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [status, setStatus] = useState<AuthStatus>('loading');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const refreshProfile = useCallback(async (): Promise<UserProfile | null> => {
-    const local = loadLocalProfile();
-    if (!local) return null;
-
-    const candidateIds = Array.from(new Set([
-      local.uid,
-      local.phone ? phoneToId(local.phone) : '',
-    ].filter(Boolean) as string[]));
-
-    let uid = candidateIds[0] || '';
-    let server: ServerProfile | null = null;
-
-    for (const id of candidateIds) {
-      const snap = await getDoc(doc(db, 'users', id));
-      if (snap.exists()) {
-        uid = snap.id;
-        server = snap.data() as ServerProfile;
-        break;
-      }
-    }
-
-    if (!server && local.phone) {
-      const found = await findUserByPhone(local.phone);
-      if (found) {
-        uid = found.uid;
-        server = found.data as ServerProfile;
-      }
-    }
-
-    if (!server) return local;
-
-    server = await restorePaidSubscriptionFromPayment(uid, {
-      ...local,
-      ...server,
-      uid,
-      tier: server.tier || local.tier || 'free',
-      phone: server.phone || local.phone || uid,
-    } as UserProfile);
-
-    const paidTier = server.tier === 'silver' || server.tier === 'gold' || server.tier === 'platinum';
-    const hasSubscriptionDates = Boolean(server.subscriptionExpiresAt || server.subscriptionStart);
-    const isExpired = paidTier && hasSubscriptionDates && !hasCurrentPaidSubscription(server);
-    if (isExpired) {
-      const expiredAt = new Date().toISOString();
-      await setDoc(doc(db, 'users', uid), {
-        tier: 'free',
-        subscriptionStatus: 'expired',
-        previousTier: server.tier,
-        subscriptionExpiredAt: expiredAt,
-        updatedAt: expiredAt,
-      }, { merge: true });
-      server = { ...server, tier: 'free', subscriptionStatus: 'expired', previousTier: server.tier, subscriptionExpiredAt: expiredAt };
-    }
-
-    const merged = {
-      ...local,
-      ...server,
-      uid,
-      tier: server.tier || local.tier || 'free',
-      phone: server.phone || local.phone || uid,
-    } as UserProfile;
-
-    saveProfile(merged);
-    setProfile(merged);
-    return merged;
+  // Derives the correct gate state from a Firebase user + their Firestore doc.
+  const resolveStatus = useCallback(async (user: User | null) => {
+    if (!user) { setProfile(null); setStatus('signed-out'); return; }
+    if (!isGoogleUser(user) && !user.emailVerified) { setStatus('unverified'); return; }
+    const p = await loadUserDoc(user.uid);
+    setProfile(p);
+    setStatus(p?.phone ? 'ready' : 'needs-phone');
   }, []);
 
   useEffect(() => {
-    if (!isUnlocked) return;
-    refreshProfile().catch(e => console.error(e));
-  }, [isUnlocked, refreshProfile]);
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      setFirebaseUser(user);
+      try { await resolveStatus(user); }
+      catch (e) { console.error('resolveStatus failed', e); setStatus(user ? 'needs-phone' : 'signed-out'); }
+    });
+    return unsub;
+  }, [resolveStatus]);
 
-  const checkPhoneExists = useCallback(async (phone: string): Promise<boolean> => {
-    const found = await findUserByPhone(phone);
-    if (found) return true;
-    // A phone with a recoverable paid subscription can log in even without a
-    // user doc (login rebuilds the profile from the payment), so signup must
-    // treat it as an existing account too.
-    const normalizedPhone = normalizePhone(phone);
-    const payment = await findLatestSuccessfulPayment(phoneToId(normalizedPhone), normalizedPhone);
-    if (payment && isPaidTier(payment.tier)) {
-      const { expiresMs } = paymentSubscriptionWindow(payment);
-      return Date.now() < expiresMs;
-    }
-    return false;
-  }, []);
+  // Cache the profile so the sync layer can resolve the uid synchronously on reload.
+  useEffect(() => {
+    if (profile) localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  }, [profile]);
 
-  const createProfile = useCallback(async (name: string, phone: string, pin: string, tier: SubscriptionTier = 'free') => {
-    setLoading(true);
+  const signUpWithEmail = useCallback(async (name: string, email: string, phone: string, pin: string) => {
     setError(null);
+    if (!name.trim()) { setError('Enter your name.'); return; }
+    if (!isValidEmail(email)) { setError('Enter a valid email address.'); return; }
+    if (!isValidKenyanPhone(phone)) { setError('Enter a valid Kenyan phone number, e.g. 0712 345 678.'); return; }
+    if (!isValidPin(pin)) { setError('PIN must be exactly 6 digits.'); return; }
+    setLoading(true);
     try {
-      const normalizedPhone = normalizePhone(phone);
-      if (!/^0\d{9}$/.test(normalizedPhone)) {
-        setError('Enter a valid Kenyan phone number, for example 0712345678.');
-        return;
-      }
-      if (!/^\d{4}$/.test(pin)) {
-        setError('PIN must be exactly 4 digits.');
-        return;
-      }
-
-      const uid = phoneToId(normalizedPhone);
-      const existing = await findUserByPhone(normalizedPhone);
-      if (existing) {
-        setError('An account already exists for this phone number. Please log in.');
-        return;
-      }
-
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), pin);
+      await updateProfile(cred.user, { displayName: name.trim() });
       const now = new Date().toISOString();
       const p: UserProfile = {
+        uid: cred.user.uid,
         name: name.trim(),
-        phone: normalizedPhone,
-        pin: hashPin(pin),
-        createdAt: now,
+        email: email.trim(),
+        phone: normalizePhone(phone),
+        authProvider: 'password',
         tier: 'free',
+        subscriptionStatus: 'active',
+        createdAt: now,
       };
-      const serverProfile = {
-        ...p,
-        subscriptionStatus: tier === 'free' ? 'active' : 'pending_payment',
-        pendingTier: tier === 'free' ? null : tier,
-      };
-
-      await setDoc(doc(db, 'users', uid), serverProfile);
-      const restoredProfile = await restorePaidSubscriptionFromPayment(uid, { ...p, uid });
-      saveProfile(restoredProfile);
-      localStorage.setItem(SESSION_KEY, 'true');
-      setProfile(restoredProfile);
-      setIsUnlocked(true);
+      await setDoc(doc(db, 'users', cred.user.uid), p);
+      await sendEmailVerification(cred.user);
+      setProfile(p);
+      setStatus('unverified');
     } catch (e) {
-      setError('Failed to create account. Check your connection.');
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+      setError(mapAuthError(e, 'Could not create account. Check your connection.'));
+    } finally { setLoading(false); }
   }, []);
 
-  const unlock = useCallback(async (phone: string, pin: string): Promise<boolean> => {
-    setLoading(true);
+  const signInWithEmail = useCallback(async (email: string, pin: string): Promise<boolean> => {
     setError(null);
+    if (!isValidEmail(email)) { setError('Enter a valid email address.'); return false; }
+    if (!isValidPin(pin)) { setError('PIN must be exactly 6 digits.'); return false; }
+    setLoading(true);
     try {
-      const normalizedPhone = normalizePhone(phone);
-      const found = await findUserByPhone(normalizedPhone);
-      const resolvedUid = found?.uid ?? phoneToId(normalizedPhone);
-      const data: UserProfile | null = found?.data ?? null;
-
-      if (!data) {
-        const recoveredProfile = await createPaidProfileFromPayment(normalizedPhone, pin);
-        if (recoveredProfile) {
-          saveProfile(recoveredProfile);
-          localStorage.setItem(SESSION_KEY, 'true');
-          setProfile(recoveredProfile);
-          setIsUnlocked(true);
-          return true;
-        }
-        setError('No account found for this phone number.');
-        return false;
-      }
-      if (data.pin !== hashPin(pin)) {
-        setError('Wrong PIN.');
-        return false;
-      }
-      const restoredProfile = await restorePaidSubscriptionFromPayment(resolvedUid, { ...data, uid: resolvedUid });
-      saveProfile(restoredProfile);
-      localStorage.setItem(SESSION_KEY, 'true');
-      setProfile(restoredProfile);
-      setIsUnlocked(true);
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), pin);
+      await resolveStatus(cred.user);
       return true;
     } catch (e) {
-      setError('Login failed. Check your connection.');
-      console.error(e);
+      setError(mapAuthError(e, 'Wrong email or PIN.'));
       return false;
-    } finally {
-      setLoading(false);
+    } finally { setLoading(false); }
+  }, [resolveStatus]);
+
+  // Web: Firebase popup. Native: the Capacitor Firebase Auth plugin performs the
+  // native Google flow, then we complete it in the JS SDK via signInWithCredential
+  // so both platforms share one Firebase User.
+  const signInWithGoogle = useCallback(async (): Promise<boolean> => {
+    setError(null);
+    setLoading(true);
+    try {
+      let user: User;
+      if (Capacitor.isNativePlatform()) {
+        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        const idToken = result.credential?.idToken;
+        if (!idToken) throw new Error('No Google credential returned.');
+        const credential = GoogleAuthProvider.credential(idToken);
+        user = (await signInWithCredential(auth, credential)).user;
+      } else {
+        user = (await signInWithPopup(auth, new GoogleAuthProvider())).user;
+      }
+      let p = await loadUserDoc(user.uid);
+      if (!p) {
+        const now = new Date().toISOString();
+        p = {
+          uid: user.uid,
+          name: user.displayName || 'PesaFlow User',
+          email: user.email || '',
+          phone: '',
+          authProvider: 'google',
+          tier: 'free',
+          subscriptionStatus: 'active',
+          createdAt: now,
+        };
+        await setDoc(doc(db, 'users', user.uid), p);
+      }
+      setProfile(p);
+      setStatus(p.phone ? 'ready' : 'needs-phone');
+      return true;
+    } catch (e) {
+      setError(mapAuthError(e, 'Google sign-in failed. Please try again.'));
+      return false;
+    } finally { setLoading(false); }
+  }, []);
+
+  // Used by the post-Google "add phone" step.
+  const savePhone = useCallback(async (phone: string): Promise<boolean> => {
+    setError(null);
+    if (!isValidKenyanPhone(phone)) { setError('Enter a valid Kenyan phone number, e.g. 0712 345 678.'); return false; }
+    const user = auth.currentUser;
+    if (!user) { setError('You are not signed in.'); return false; }
+    setLoading(true);
+    try {
+      const normalized = normalizePhone(phone);
+      await setDoc(doc(db, 'users', user.uid), { phone: normalized }, { merge: true });
+      setProfile((prev) => (prev ? { ...prev, phone: normalized } : prev));
+      setStatus('ready');
+      return true;
+    } catch {
+      setError('Could not save your phone. Check your connection.');
+      return false;
+    } finally { setLoading(false); }
+  }, []);
+
+  const resendVerification = useCallback(async () => {
+    if (auth.currentUser) {
+      try { await sendEmailVerification(auth.currentUser); }
+      catch (e) { setError(mapAuthError(e, 'Could not resend the email. Try again shortly.')); }
     }
   }, []);
 
-  const updateTier = useCallback(async (tier: SubscriptionTier): Promise<boolean> => {
-    const local = loadLocalProfile();
-    if (!local) return false;
-    const fresh = await refreshProfile();
-    const uid = fresh?.uid || local.uid || (local.phone ? phoneToId(local.phone) : '');
-    const snap = uid ? await getDoc(doc(db, 'users', uid)) : null;
-    const server = snap?.exists() ? snap.data() as ServerProfile : (fresh || {}) as ServerProfile;
-    if (server.subscriptionStatus !== 'active' || server.tier !== tier) {
-      return false;
-    }
-    const updated = {
-      ...local,
-      ...fresh,
-      ...server,
-      uid,
-      tier: server.tier,
-      subscriptionStart: server.subscriptionStart ?? new Date().toISOString(),
-    } as UserProfile;
-    saveProfile(updated);
-    setProfile(updated);
-    return true;
-  }, [refreshProfile]);
+  // Re-checks emailVerified after the user clicks the link in their inbox.
+  const refreshVerification = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    await user.reload();
+    await resolveStatus(auth.currentUser);
+  }, [resolveStatus]);
 
-  const lock = useCallback(() => {
-    localStorage.removeItem(SESSION_KEY);
-    setIsUnlocked(false);
+  const sendPinReset = useCallback(async (email: string): Promise<boolean> => {
+    setError(null);
+    if (!isValidEmail(email)) { setError('Enter a valid email address.'); return false; }
+    setLoading(true);
+    try { await sendPasswordResetEmail(auth, email.trim()); return true; }
+    catch (e) { setError(mapAuthError(e, 'Could not send the reset email.')); return false; }
+    finally { setLoading(false); }
+  }, []);
+
+  // Re-reads the profile doc (e.g. after a subscription payment activates a tier).
+  const refreshProfile = useCallback(async (): Promise<UserProfile | null> => {
+    const user = auth.currentUser;
+    if (!user) return null;
+    const p = await loadUserDoc(user.uid);
+    if (p) setProfile(p);
+    return p;
+  }, []);
+
+  const logout = useCallback(async () => {
+    await signOut(auth);
+    localStorage.removeItem(PROFILE_KEY);
+    setProfile(null);
+    setStatus('signed-out');
   }, []);
 
   const deleteAccount = useCallback(async () => {
-    try {
-      const local = loadLocalProfile();
-      if (local?.phone) await deleteDoc(doc(db, 'users', phoneToId(local.phone)));
-    } catch { /* best effort */ }
-    [SESSION_KEY, PROFILE_KEY, 'finwise_expenses', 'finwise_investments',
-     'finwise_goals', 'finwise_bills', 'finwise_networth']
-      .forEach(k => localStorage.removeItem(k));
+    const user = auth.currentUser;
+    try { if (user) await deleteDoc(doc(db, 'users', user.uid)); } catch { /* best effort */ }
+    [ PROFILE_KEY, 'finwise_expenses', 'finwise_investments', 'finwise_goals', 'finwise_bills', 'finwise_networth' ]
+      .forEach((k) => localStorage.removeItem(k));
+    try { if (user) await deleteUser(user); } catch { await signOut(auth).catch(() => {}); }
     setProfile(null);
-    setIsUnlocked(false);
+    setStatus('signed-out');
   }, []);
 
-  return { profile, isUnlocked, loading, error, createProfile, unlock, lock, deleteAccount, updateTier, refreshProfile, checkPhoneExists };
+  return {
+    firebaseUser, profile, status, loading, error,
+    signUpWithEmail, signInWithEmail, signInWithGoogle, savePhone,
+    resendVerification, refreshVerification, sendPinReset,
+    refreshProfile, logout, deleteAccount,
+  };
 };

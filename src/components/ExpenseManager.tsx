@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
-import type { Expense, ExpenseCategory } from '../types';
+import { Check, AlertTriangle, Repeat, X, Pencil, Plus } from 'lucide-react';
+import type { Expense, ExpenseCategory, ExpenseFrequency } from '../types';
 import { CATEGORY_META, formatCurrency } from '../utils/expenses';
+import { readProfileDailyMultiplier } from '../utils/frequency';
+import { IconSelect } from './ui/IconSelect';
+import { Modal } from './ui/Modal';
 
 interface ExpenseFormProps {
   onAdd: (expense: Omit<Expense, 'id'>) => void;
@@ -9,15 +13,25 @@ interface ExpenseFormProps {
 interface ExpenseListProps {
   expenses: Expense[];
   onRemove: (id: string) => void;
+  onUpdate: (id: string, patch: Partial<Omit<Expense, 'id'>>) => void;
   currency: string;
 }
+
+const FREQ_OPTIONS: { key: ExpenseFrequency; label: string }[] = [
+  { key: 'oneoff', label: 'One-off' },
+  { key: 'daily', label: 'Daily' },
+  { key: 'monthly', label: 'Monthly' },
+];
 
 export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onAdd }) => {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<ExpenseCategory>('food');
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [frequency, setFrequency] = useState<ExpenseFrequency>('oneoff');
+  const [showForm, setShowForm] = useState(false);
+
+  const amtNum = parseFloat(amount.replace(/,/g, '')) || 0;
+  const dailyMonthly = frequency === 'daily' && amtNum > 0 ? Math.round(amtNum * readProfileDailyMultiplier()) : 0;
 
   const handleSubmit = () => {
     const amt = parseFloat(amount.replace(/,/g, ''));
@@ -26,20 +40,20 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onAdd }) => {
       name: name.trim(), amount: amt, category,
       type: CATEGORY_META[category].type,
       date: new Date().toISOString().slice(0, 10),
-      isRecurring,
+      isRecurring: frequency !== 'oneoff',
+      frequency,
     });
-    setName(''); setAmount(''); setCategory('food'); setIsRecurring(false);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 1500);
+    setName(''); setAmount(''); setCategory('food'); setFrequency('oneoff');
+    setShowForm(false);
   };
 
   return (
-    <div style={S.formCard}>
-      <div style={S.formTitle}>
-        <span style={S.formTitleText}>Add Expense</span>
-        {submitted && <span style={S.successTag}>✓ Added!</span>}
-      </div>
+    <>
+    <button style={S.triggerBtn} onClick={() => setShowForm(true)}>
+      <Plus size={18} strokeWidth={2.6} /> Add Expense
+    </button>
 
+    <Modal open={showForm} onClose={() => setShowForm(false)} title="Add Expense">
       <div className="form-grid">
         <div style={S.field}>
           <label style={S.label}>Expense Name</label>
@@ -57,23 +71,12 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onAdd }) => {
 
         <div style={S.field}>
           <label style={S.label}>Category</label>
-          <select style={S.select} value={category}
-            onChange={(e) => setCategory(e.target.value as ExpenseCategory)}>
-            <optgroup label="✅ Necessary">
-              {(Object.entries(CATEGORY_META) as [ExpenseCategory, typeof CATEGORY_META[ExpenseCategory]][])
-                .filter(([, m]) => m.type === 'necessary')
-                .map(([key, meta]) => (
-                  <option key={key} value={key}>{meta.icon} {meta.label}</option>
-                ))}
-            </optgroup>
-            <optgroup label="⚠️ Unnecessary">
-              {(Object.entries(CATEGORY_META) as [ExpenseCategory, typeof CATEGORY_META[ExpenseCategory]][])
-                .filter(([, m]) => m.type === 'unnecessary')
-                .map(([key, meta]) => (
-                  <option key={key} value={key}>{meta.icon} {meta.label}</option>
-                ))}
-            </optgroup>
-          </select>
+          <IconSelect
+            value={category}
+            onChange={(v) => setCategory(v)}
+            options={(Object.entries(CATEGORY_META) as [ExpenseCategory, typeof CATEGORY_META[ExpenseCategory]][])
+              .map(([key, m]) => ({ value: key, label: m.label, icon: m.icon, color: m.color, group: m.type === 'necessary' ? 'Necessary' : 'Unnecessary' }))}
+          />
         </div>
 
         <div style={S.field}>
@@ -81,34 +84,82 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onAdd }) => {
           <div style={S.typeTag}>
             <span style={{
               ...S.typeChip,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
               background: CATEGORY_META[category].type === 'necessary' ? 'var(--green-dim)' : 'var(--amber-dim)',
               color: CATEGORY_META[category].type === 'necessary' ? 'var(--green)' : 'var(--amber)',
             }}>
-              {CATEGORY_META[category].type === 'necessary' ? '✓ Necessary' : '⚠ Unnecessary'}
+              {CATEGORY_META[category].type === 'necessary'
+                ? <><Check size={14} strokeWidth={2.6} /> Necessary</>
+                : <><AlertTriangle size={14} strokeWidth={2.4} /> Unnecessary</>}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="form-bottom">
-        <label style={S.checkLabel}>
-          <input type="checkbox" checked={isRecurring}
-            onChange={(e) => setIsRecurring(e.target.checked)}
-            style={{ accentColor: 'var(--gold)' }} />
-          <span>Recurring expense</span>
-        </label>
+      <div className="form-bottom" style={S.modalBottom}>
+        <div style={S.freqWrap}>
+          <label style={S.freqLabel}>How often?</label>
+          <div style={S.freqRow}>
+            {([
+              { key: 'oneoff', label: 'One-off' },
+              { key: 'daily', label: 'Daily' },
+              { key: 'monthly', label: 'Monthly' },
+            ] as { key: ExpenseFrequency; label: string }[]).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setFrequency(opt.key)}
+                style={{ ...S.freqBtn, ...(frequency === opt.key ? S.freqBtnActive : {}) }}
+              >{opt.label}</button>
+            ))}
+          </div>
+          {dailyMonthly > 0 && (
+            <span style={S.freqHint}>≈ {formatCurrency(dailyMonthly, 'KES')}/month</span>
+          )}
+        </div>
         <button
-          style={{ ...S.addBtn, opacity: !name.trim() || !amount ? 0.5 : 1 }}
+          style={{ ...S.addBtn, ...S.addBtnModal, opacity: !name.trim() || !amount ? 0.5 : 1 }}
           onClick={handleSubmit} disabled={!name.trim() || !amount}>
-          + Add Expense
+          <Check size={15} strokeWidth={2.6} /> Save Expense
         </button>
       </div>
-    </div>
+    </Modal>
+    </>
   );
 };
 
-export const ExpenseList: React.FC<ExpenseListProps> = ({ expenses, onRemove, currency }) => {
+export const ExpenseList: React.FC<ExpenseListProps> = ({ expenses, onRemove, onUpdate, currency }) => {
   const [filter, setFilter] = useState<'all' | 'necessary' | 'unnecessary'>('all');
+
+  const [editId, setEditId] = useState<string | null>(null);
+  const [eName, setEName] = useState('');
+  const [eAmount, setEAmount] = useState('');
+  const [eCategory, setECategory] = useState<ExpenseCategory>('food');
+  const [eFrequency, setEFrequency] = useState<ExpenseFrequency>('oneoff');
+
+  const startEdit = (exp: Expense) => {
+    setEditId(exp.id);
+    setEName(exp.name);
+    setEAmount(String(exp.amount));
+    setECategory(exp.category);
+    setEFrequency(exp.frequency ?? (exp.isRecurring ? 'monthly' : 'oneoff'));
+  };
+
+  const cancelEdit = () => setEditId(null);
+
+  const saveEdit = (id: string) => {
+    const amt = parseFloat(eAmount.replace(/,/g, ''));
+    if (!eName.trim() || isNaN(amt) || amt <= 0) return;
+    onUpdate(id, {
+      name: eName.trim(),
+      amount: amt,
+      category: eCategory,
+      type: CATEGORY_META[eCategory].type,
+      frequency: eFrequency,
+      isRecurring: eFrequency !== 'oneoff',
+    });
+    setEditId(null);
+  };
 
   const filtered = expenses.filter((e) =>
     filter === 'all' ? true : CATEGORY_META[e.category].type === filter
@@ -136,17 +187,72 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({ expenses, onRemove, cu
         <div style={S.list}>
           {sorted.map((exp) => {
             const meta = CATEGORY_META[exp.category];
+            const Icon = meta.icon;
+
+            if (editId === exp.id) {
+              return (
+                <div key={exp.id} style={S.editRow}>
+                  <div style={S.editHead}>
+                    <Pencil size={13} strokeWidth={2.2} style={{ color: 'var(--gold)' }} />
+                    <span>Edit expense</span>
+                  </div>
+                  <div style={S.editFieldGroup}>
+                    <label style={S.editLabel}>Name</label>
+                    <input style={S.editInput} placeholder="Expense name" value={eName}
+                      onChange={(e) => setEName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(exp.id)} autoFocus />
+                  </div>
+                  <div style={S.editTwoCol}>
+                    <div style={S.editFieldGroup}>
+                      <label style={S.editLabel}>Amount (KSh)</label>
+                      <input style={S.editInput} type="number" min="0" placeholder="0" value={eAmount}
+                        onChange={(e) => setEAmount(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && saveEdit(exp.id)} />
+                    </div>
+                    <div style={S.editFieldGroup}>
+                      <label style={S.editLabel}>Category</label>
+                      <IconSelect
+                        value={eCategory}
+                        onChange={(v) => setECategory(v)}
+                        options={(Object.entries(CATEGORY_META) as [ExpenseCategory, typeof CATEGORY_META[ExpenseCategory]][])
+                          .map(([key, m]) => ({ value: key, label: m.label, icon: m.icon, color: m.color, group: m.type === 'necessary' ? 'Necessary' : 'Unnecessary' }))}
+                      />
+                    </div>
+                  </div>
+                  <div style={S.editFieldGroup}>
+                    <label style={S.editLabel}>Frequency</label>
+                    <div style={S.editFreqRow}>
+                      {FREQ_OPTIONS.map((opt) => (
+                        <button key={opt.key} type="button" onClick={() => setEFrequency(opt.key)}
+                          style={{ ...S.freqBtn, ...(eFrequency === opt.key ? S.freqBtnActive : {}) }}>{opt.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={S.editActions}>
+                    <button style={S.cancelBtn} onClick={cancelEdit}><X size={14} strokeWidth={2.4} /> Cancel</button>
+                    <button style={S.saveBtn} onClick={() => saveEdit(exp.id)}><Check size={15} strokeWidth={2.8} /> Save changes</button>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div key={exp.id} className="exp-item">
-                <div style={{ ...S.expIcon, background: `${meta.color}20` }}>{meta.icon}</div>
+                <div style={{ ...S.expIcon, background: `${meta.color}20` }}><Icon size={18} strokeWidth={2.1} style={{ color: meta.color }} /></div>
                 <div style={S.expInfo}>
                   <div style={S.expName}>{exp.name}</div>
                   <div style={S.expMeta}>
                     <span style={{ color: meta.color }}>{meta.label}</span>
                     <span style={S.expDot}>·</span>
                     <span>{exp.date}</span>
-                    {exp.isRecurring && (
-                      <><span style={S.expDot}>·</span><span style={S.recurringTag}>↻ Recurring</span></>
+                    {exp.frequency === 'daily' && (
+                      <><span style={S.expDot}>·</span><span style={S.recurringTag}><Repeat size={11} strokeWidth={2.4} /> Daily</span></>
+                    )}
+                    {exp.frequency === 'monthly' && (
+                      <><span style={S.expDot}>·</span><span style={S.recurringTag}><Repeat size={11} strokeWidth={2.4} /> Monthly</span></>
+                    )}
+                    {!exp.frequency && exp.isRecurring && (
+                      <><span style={S.expDot}>·</span><span style={S.recurringTag}><Repeat size={11} strokeWidth={2.4} /> Recurring</span></>
                     )}
                   </div>
                 </div>
@@ -156,7 +262,8 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({ expenses, onRemove, cu
                     {meta.type}
                   </div>
                 </div>
-                <button style={S.removeBtn} onClick={() => onRemove(exp.id)} aria-label="Remove">✕</button>
+                <button style={S.editBtn} onClick={() => startEdit(exp)} aria-label="Edit"><Pencil size={13} strokeWidth={2.2} /></button>
+                <button style={S.removeBtn} onClick={() => onRemove(exp.id)} aria-label="Remove"><X size={14} strokeWidth={2.4} /></button>
               </div>
             );
           })}
@@ -170,7 +277,7 @@ const S: Record<string, React.CSSProperties> = {
   formCard: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 22px' },
   formTitle: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 },
   formTitleText: { fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: 'var(--text-1)' },
-  successTag: { fontSize: 12, color: 'var(--green)', background: 'var(--green-dim)', padding: '3px 10px', borderRadius: 4, fontWeight: 600 },
+  successTag: { fontSize: 12, color: 'var(--green)', background: 'var(--green-dim)', padding: '3px 10px', borderRadius: 4, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.07em' },
   input: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', color: 'var(--text-1)', fontSize: 14, fontFamily: 'Karla, sans-serif' },
@@ -178,7 +285,16 @@ const S: Record<string, React.CSSProperties> = {
   typeTag: { display: 'flex', alignItems: 'center', paddingTop: 4 },
   typeChip: { padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 },
   checkLabel: { display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-2)', fontSize: 14, cursor: 'pointer' },
-  addBtn: { padding: '11px 24px', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', borderRadius: 9, fontWeight: 700, fontSize: 14, fontFamily: 'Karla, sans-serif', boxShadow: '0 4px 20px var(--gold-glow)' },
+  freqWrap: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  freqLabel: { fontSize: 13, color: 'var(--text-3)' },
+  freqRow: { display: 'flex', gap: 6 },
+  freqBtn: { padding: '9px 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Karla, sans-serif', textAlign: 'center', whiteSpace: 'nowrap' },
+  freqBtnActive: { background: 'var(--gold-dim)', color: 'var(--gold)', borderColor: 'var(--border-acc)' },
+  freqHint: { fontSize: 12, color: 'var(--gold)', fontWeight: 600 },
+  addBtn: { padding: '11px 24px', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', border: 'none', borderRadius: 9, fontWeight: 700, fontSize: 14, fontFamily: 'Karla, sans-serif', boxShadow: '0 4px 20px var(--gold-glow)', cursor: 'pointer' },
+  addBtnModal: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%' },
+  triggerBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'flex-start', padding: '13px 22px', marginBottom: 16, background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, fontFamily: 'Karla, sans-serif', cursor: 'pointer', boxShadow: '0 4px 20px var(--gold-glow)' },
+  modalBottom: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 14, marginTop: 16 },
   listCard: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 22px', marginTop: 16 },
   listTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 20, fontWeight: 600, color: 'var(--text-1)' },
   filterRow: { display: 'flex', gap: 6, flexWrap: 'wrap' },
@@ -191,9 +307,20 @@ const S: Record<string, React.CSSProperties> = {
   expName: { fontSize: 14, color: 'var(--text-1)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   expMeta: { display: 'flex', gap: 6, fontSize: 12, color: 'var(--text-3)', marginTop: 2, flexWrap: 'wrap' },
   expDot: { color: 'var(--text-3)' },
-  recurringTag: { color: 'var(--blue)' },
+  recurringTag: { color: 'var(--blue)', display: 'inline-flex', alignItems: 'center', gap: 3 },
   expRight: { textAlign: 'right', flexShrink: 0 },
   expAmount: { fontFamily: 'Cormorant Garamond, serif', fontSize: 16, fontWeight: 600 },
   expType: { fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' },
-  removeBtn: { background: 'transparent', color: 'var(--text-3)', fontSize: 14, padding: '4px 8px', borderRadius: 6, border: '1px solid transparent', flexShrink: 0 },
+  removeBtn: { background: 'transparent', color: 'var(--text-3)', fontSize: 14, padding: '4px 8px', borderRadius: 6, border: '1px solid transparent', flexShrink: 0, display: 'inline-flex', alignItems: 'center' },
+  editBtn: { background: 'transparent', color: 'var(--text-3)', padding: '4px 8px', borderRadius: 6, border: '1px solid transparent', flexShrink: 0, display: 'inline-flex', alignItems: 'center', cursor: 'pointer' },
+  editRow: { display: 'flex', flexDirection: 'column', gap: 12, padding: 16, borderRadius: 12, background: 'var(--bg-surface)', border: '1px solid var(--border-acc)', margin: '4px 0' },
+  editHead: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  editFieldGroup: { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
+  editLabel: { fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.07em' },
+  editInput: { width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', color: 'var(--text-1)', fontSize: 14, fontFamily: 'Karla, sans-serif', boxSizing: 'border-box' },
+  editTwoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
+  editFreqRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 },
+  editActions: { display: 'flex', gap: 8, marginTop: 2 },
+  saveBtn: { flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '11px 16px', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', border: 'none', borderRadius: 9, fontWeight: 700, fontSize: 14, fontFamily: 'Karla, sans-serif', cursor: 'pointer' },
+  cancelBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 16px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-2)', borderRadius: 9, fontSize: 14, fontWeight: 600, fontFamily: 'Karla, sans-serif', cursor: 'pointer' },
 };

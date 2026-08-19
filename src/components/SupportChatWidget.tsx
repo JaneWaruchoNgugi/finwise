@@ -54,7 +54,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ profile })
     const threadRef = doc(db, 'supportThreads', userId);
     await setDoc(threadRef, {
       userId,
-      userName: profile?.name || 'FinWise user',
+      userName: profile?.name || 'PesaFlow user',
       userPhone: profile?.phone || userId,
       userTier: profile?.tier || 'free',
       status: 'open',
@@ -67,7 +67,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ profile })
     }, { merge: true });
     await addDoc(collection(db, 'supportThreads', userId, 'messages'), {
       sender: 'user',
-      senderName: profile?.name || 'FinWise user',
+      senderName: profile?.name || 'PesaFlow user',
       text,
       createdAt: now,
     });

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Shield } from 'lucide-react';
 
 interface AdminLoginProps {
   login: (email: string, password: string) => Promise<boolean>;
@@ -19,11 +20,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ login, loading, error })
     <div style={overlay}>
       <form onSubmit={handleSubmit} style={card}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 28, marginBottom: 6 }}>🛡️</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}><Shield size={28} color="var(--gold)" /></div>
           <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 700, color: 'var(--text-1)' }}>
             Admin Access
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>FinWise Control Panel</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>PesaFlow Control Panel</div>
         </div>
 
         <input

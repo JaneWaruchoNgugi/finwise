@@ -1,8 +1,8 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type{ Investment, InvestmentStatus } from '../types';
 import { generateId, getCurrentMonth } from '../utils/expenses';
 import { calculateInvestmentSummary, filterInvestmentsByMonth } from '../utils/investments';
-import { syncCollection, deleteFromCollection } from '../lib/sync';
+import { syncCollection, deleteFromCollection, fetchCollection } from '../lib/sync';
 
 const STORAGE_KEY = 'finwise_investments';
 const load = (): Investment[] => {
@@ -12,6 +12,15 @@ const load = (): Investment[] => {
 export const useInvestments = () => {
   const [investments, setInvestments] = useState<Investment[]>(load);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+
+  // Hydrate from Firestore on mount so investments load across devices.
+  useEffect(() => {
+    let alive = true;
+    fetchCollection<Investment>('investments').then(remote => {
+      if (alive && remote) { setInvestments(remote); localStorage.setItem(STORAGE_KEY, JSON.stringify(remote)); }
+    });
+    return () => { alive = false; };
+  }, []);
 
   const persist = (updated: Investment[]) => {
     setInvestments(updated);

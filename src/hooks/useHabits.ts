@@ -1,12 +1,19 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { Habit } from '../types';
 import { generateId } from '../utils/expenses';
+import { syncDoc, fetchDoc } from '../lib/sync';
 
 const STORAGE_KEY = 'finwise_habits';
 const TODAY = () => new Date().toISOString().slice(0, 10);
 
+// Apply the "reset done flags at the start of a new day" rule to any habit list.
+const applyDailyReset = (list: Habit[]): Habit[] => {
+  const today = TODAY();
+  return list.map(h => (h.lastResetDate !== today && h.done ? { ...h, done: false, lastResetDate: today } : h));
+};
+
 const DEFAULT_HABITS: Omit<Habit, 'id'>[] = [
-  { text: 'Check FinWise dashboard', done: false, createdAt: new Date().toISOString() },
+  { text: 'Check PesaFlow dashboard', done: false, createdAt: new Date().toISOString() },
   { text: 'Log every expense (no matter how small)', done: false, createdAt: new Date().toISOString() },
   { text: 'Avoid impulse purchases — apply the 48-hour rule', done: false, createdAt: new Date().toISOString() },
   { text: 'Check upcoming bills due this week', done: false, createdAt: new Date().toISOString() },
@@ -36,9 +43,23 @@ const load = (): Habit[] => {
 export const useHabits = () => {
   const [habits, setHabits] = useState<Habit[]>(load);
 
+  // Hydrate habits from Firestore on mount (stored as a data/habits doc).
+  useEffect(() => {
+    let alive = true;
+    fetchDoc<{ items: Habit[] }>('habits').then(remote => {
+      if (alive && remote?.items?.length) {
+        const next = applyDailyReset(remote.items);
+        setHabits(next);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
+    });
+    return () => { alive = false; };
+  }, []);
+
   const save = (updated: Habit[]) => {
     setHabits(updated);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    syncDoc('habits', { items: updated });
   };
 
   const addHabit = useCallback((text: string) => {

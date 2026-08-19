@@ -1,120 +1,77 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  BadgeCheck,
-  BarChart3,
-  Bell,
-  Bot,
-  CalendarDays,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Circle,
-  CircleDollarSign,
-  Crown,
-  Flag,
-  Goal,
-  Landmark,
-  Layers3,
-  LineChart,
-  LockKeyhole,
-  ReceiptText,
-  Shield,
-  Sparkles,
-  Star,
-  TrendingUp,
-  WalletCards,
-  Download,
-  XCircle,
+  ArrowRight, Bell, Bot, BarChart3, CalendarDays, Check, ChevronDown, ChevronRight,
+  CircleDollarSign, Crown, Download, Layers3, LineChart,
+  LockKeyhole, Menu, PieChart, Quote, ReceiptText, Shield, Sparkles, Star, Target,
+  TrendingUp, Users, WalletCards, X, XCircle,
 } from 'lucide-react';
-import type { SubscriptionTier, SubscriptionPlan } from '../types';
+import type { SubscriptionTier } from '../types';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+
+// lucide-react dropped brand icons in recent versions — render social marks as inline SVG.
+const SOCIAL_ICONS: React.FC<{ size?: number }>[] = [
+  ({ size = 16 }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M14 9h3l.5-3H14V4.2c0-.9.3-1.5 1.6-1.5H17V.1C16.4 0 15.5 0 14.6 0 12.3 0 11 1.3 11 3.7V6H8v3h3v9h3V9z" /></svg>),
+  ({ size = 16 }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.1 8.1L23 22h-6.6l-5.2-6.8L5.3 22H2.2l7.6-8.7L1.5 2h6.8l4.7 6.2L18.9 2zm-1.2 18h1.8L7.1 3.9H5.2L17.7 20z" /></svg>),
+  ({ size = 16 }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5.5" /><circle cx="12" cy="12" r="4.2" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" /></svg>),
+];
 
 type IconComponent = React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>;
-type LandingPlan = Omit<SubscriptionPlan, 'icon'> & {
-  icon: IconComponent;
-  standardPrice?: number;
-  tagline: string;
-};
 
-const INTRO_END_LABEL = 'June 30, 2026';
 const ANDROID_APK_URL = '/downloads/finwise-android.apk';
 
-const PLANS: LandingPlan[] = [
-  {
-    tier: 'free',
-    name: 'Free',
-    price: 0,
-    color: '#6B7280',
-    icon: Circle,
-    tagline: 'A clean start for everyday tracking',
-    features: [
-      'Expense tracking & categorisation',
-      'Financial Advisor view',
-      'Dashboard overview',
-      'Monthly spending summary',
-    ],
-    lockedViews: ['investments', 'goals', 'bills', 'networth', 'emergency', 'insights', 'chat', 'alerts'],
-  },
-  {
-    tier: 'silver',
-    name: 'Silver',
-    price: 10,
-    standardPrice: 299,
-    color: '#94A3B8',
-    icon: BadgeCheck,
-    tagline: 'Planning essentials for one focused month',
-    features: [
-      'Everything in Free',
-      'Bills & recurring payments',
-      'Savings goals with deadlines',
-      'Emergency fund tracker',
-      'Net Worth calculator',
-    ],
-    lockedViews: ['investments', 'insights', 'chat', 'alerts'],
-  },
-  {
-    tier: 'gold',
-    name: 'Gold',
-    price: 20,
-    standardPrice: 599,
-    color: '#D97706',
-    icon: Crown,
-    tagline: 'Complete premium access and intelligence',
-    features: [
-      'Everything in Silver',
-      'Investment portfolio tracking',
-      'Spending insights & analytics',
-      'AI Chat financial advisor',
-      'Alerts & SOS emergency system',
-      'Priority support',
-      'CSV data exports',
-    ],
-    lockedViews: [],
-  },
+// ── Design tokens (self-contained light theme so the landing always matches the mockup) ──
+const C = {
+  ink: '#0F1B2D',
+  body: '#55627A',
+  muted: '#8A93A5',
+  orange: '#F97316',
+  orangeDark: '#EA580C',
+  line: 'rgba(15,27,45,0.08)',
+  cardShadow: '0 10px 34px rgba(15,27,45,0.06)',
+  cream: '#FDF6EE',
+};
+
+const FREE_FEATURES = [
+  'Expense tracking & categorisation',
+  'Financial Advisor view',
+  'Dashboard overview',
+  'Monthly spending summary',
+  'Bills & recurring payments',
+  'Savings goals with deadlines',
+  'Emergency fund tracker',
+  'Net Worth calculator',
 ];
 
-export const PLAN_LOCKED_VIEWS = Object.fromEntries(
-  PLANS.map(p => [p.tier, p.lockedViews])
-) as Record<SubscriptionTier, import('../types').AppView[]>;
-
-const STATS: { value: string; label: string; icon?: IconComponent }[] = [
-  { value: '12,000+', label: 'Kenyans saving smarter' },
-  { value: 'KES 2.4B', label: 'Tracked across users' },
-  { value: '4.9', label: 'Average user rating', icon: Star },
+const GOLD_FEATURES = [
+  'Investment portfolio tracking',
+  'Spending insights & analytics',
+  'AI chat financial advisor',
+  'Alerts & SOS emergency system',
+  'Priority support',
+  'CSV data exports',
 ];
 
-const FEATURES: { icon: IconComponent; title: string; desc: string }[] = [
-  { icon: BarChart3, title: 'Smart Budgeting', desc: 'Categorise every shilling and see exactly where your money is going.' },
-  { icon: Goal, title: 'Goal Tracking', desc: 'Set savings targets with deadlines and measure progress in real time.' },
-  { icon: TrendingUp, title: 'Investment Manager', desc: 'Track SACCOs, MMFs, stocks, bonds and crypto in one calm portfolio view.' },
-  { icon: Bot, title: 'AI Financial Advisor', desc: 'Get guidance based on your income, spending, goals, and actual habits.' },
-  { icon: Bell, title: 'Bills & Alerts', desc: 'Stay ahead of recurring bills, overdue payments, and emergency signals.' },
-  { icon: Landmark, title: 'Net Worth Clarity', desc: 'Bring assets and liabilities together so your financial position is easy to read.' },
+const STATS: { icon: IconComponent; value: string; label: string }[] = [
+  { icon: Users, value: '12,000+', label: 'Active users' },
+  { icon: LineChart, value: 'KES 2.4B+', label: 'Tracked across users' },
+  { icon: Target, value: '98%', label: 'Goal achievement rate' },
+  { icon: Star, value: '4.9 / 5', label: 'Average user rating' },
 ];
 
 const VALUE_POINTS: { icon: IconComponent; title: string; desc: string }[] = [
-  { icon: WalletCards, title: 'Built around Kenyan money habits', desc: 'KES-first tracking, M-Pesa-friendly pricing, and categories that make sense locally.' },
+  { icon: WalletCards, title: 'Built for real Kenyan lives', desc: 'KES-first pricing, M-Pesa friendly, and categories that make sense locally.' },
   { icon: Shield, title: 'Private by design', desc: 'Your day-to-day records stay on your device unless you choose paid activation.' },
   { icon: Layers3, title: 'One place for the full picture', desc: 'Expenses, goals, bills, investments, net worth, alerts, and AI support work together.' },
+];
+
+const FEATURES: { icon: IconComponent; title: string; desc: string; color: string }[] = [
+  { icon: BarChart3, title: 'Smart Budgeting', desc: 'Categorise wisely, set limits, and see exactly where your money is going.', color: '#16A34A' },
+  { icon: Target, title: 'Goal Tracking', desc: 'Set savings targets with deadlines and measure progress in real time.', color: '#EA580C' },
+  { icon: TrendingUp, title: 'Investment Manager', desc: 'Track SACCOs, MMFs, stocks, bonds and crypto in one calm portfolio view.', color: '#2563EB' },
+  { icon: Bot, title: 'AI Financial Advisor', desc: 'Get guidance based on your income, spending, goals, and actual habits.', color: '#7C3AED' },
+  { icon: Bell, title: 'Bills & Alerts', desc: 'Stay ahead of recurring bills, overdue payments, and emergency signals.', color: '#DC2626' },
+  { icon: PieChart, title: 'Net Worth Clarity', desc: 'Bring assets and liabilities together so your financial position is easy to read.', color: '#0891B2' },
 ];
 
 const STEPS: { icon: IconComponent; title: string; desc: string }[] = [
@@ -123,10 +80,30 @@ const STEPS: { icon: IconComponent; title: string; desc: string }[] = [
   { icon: CalendarDays, title: 'Act with a plan', desc: 'Use goals, alerts, and recommendations to make your next money move clear.' },
 ];
 
-const TRUST_ITEMS: { icon: IconComponent; label: string }[] = [
-  { icon: LockKeyhole, label: 'PIN-protected access' },
-  { icon: CircleDollarSign, label: 'KES currency support' },
-  { icon: XCircle, label: 'No bank login required' },
+const MINI_TRUST: { icon: IconComponent; title: string; desc: string; color: string }[] = [
+  { icon: WalletCards, title: 'Made for Kenya', desc: 'KES-first, M-Pesa friendly, and built for Kenyan lives — not borrowed from abroad.', color: '#EA580C' },
+  { icon: Shield, title: 'Secure by default', desc: 'Your data stays on your device and you choose when to sync or activate.', color: '#16A34A' },
+  { icon: Sparkles, title: 'Simple & actionable', desc: 'Clear insights that help you make better money decisions every single day.', color: '#7C3AED' },
+];
+
+const TESTIMONIALS: { quote: string; name: string; place: string }[] = [
+  { quote: 'PesaFlow changed how I manage my money. Everything I need is in one place, and it finally makes sense.', name: 'Grace M.', place: 'Nairobi' },
+  { quote: 'I used to lose track of my daily hustle earnings. Now I set aside my savings the moment I get paid.', name: 'Brian O.', place: 'Nakuru' },
+  { quote: 'Seeing my SACCO, M-Pesa and bills in one view helped me finally build a real emergency fund.', name: 'Amina H.', place: 'Mombasa' },
+];
+
+const NAV_LINKS: { label: string; target: string }[] = [
+  { label: 'Features', target: 'features' },
+  { label: 'How It Works', target: 'how' },
+  { label: 'Pricing', target: 'plans' },
+  { label: 'About Us', target: 'why' },
+  { label: 'Blog', target: 'footer' },
+];
+
+const FOOTER_COLS: { heading: string; links: { label: string; target: string }[] }[] = [
+  { heading: 'Product', links: [{ label: 'Features', target: 'features' }, { label: 'How It Works', target: 'how' }, { label: 'Pricing', target: 'plans' }, { label: 'Updates', target: 'features' }] },
+  { heading: 'Company', links: [{ label: 'About Us', target: 'why' }, { label: 'Blog', target: 'footer' }, { label: 'Privacy Policy', target: 'footer' }, { label: 'Terms of Service', target: 'footer' }] },
+  { heading: 'Support', links: [{ label: 'Help Center', target: 'footer' }, { label: 'Contact Us', target: 'footer' }, { label: 'Security', target: 'footer' }] },
 ];
 
 interface LandingPageProps {
@@ -134,354 +111,565 @@ interface LandingPageProps {
   onLogin: () => void;
 }
 
+const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
 export const LandingPage: React.FC<LandingPageProps> = ({ onSelectTier, onLogin }) => {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setVisible(true), 50); return () => clearTimeout(t); }, []);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [testi, setTesti] = useState(0);
+  const [email, setEmail] = useState('');
+  const [subscribed, setSubscribed] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setTesti(t => (t + 1) % TESTIMONIALS.length), 6000);
+    return () => clearInterval(id);
+  }, []);
+
+  const goFree = () => onSelectTier('free');
+  const nav = (id: string) => { setMenuOpen(false); scrollTo(id); };
+
+  const subscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return;
+    setSubscribed(true);
+    setEmail('');
+    try {
+      // Doc id = sanitized email so re-subscribing updates rather than duplicates.
+      await setDoc(doc(db, 'subscribers', clean.replace(/[^a-z0-9]/g, '_')), {
+        email: clean,
+        source: 'landing',
+        subscribedAt: serverTimestamp(),
+        active: true,
+      }, { merge: true });
+    } catch (err) {
+      console.error('subscribe failed:', err);
+    }
+  };
 
   return (
     <div style={S.page}>
-      <style>{`
-        @keyframes fadeUp   { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes float    { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
-        .land-hero   { animation: fadeUp 0.55s ease forwards; }
-        .land-stats  { animation: fadeUp 0.55s ease 0.12s both; }
-        .land-section { animation: fadeUp 0.55s ease 0.18s both; }
-        .plan-card   { transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease; }
-        .plan-card:hover { transform: translateY(-6px); }
-        .feat-card, .value-card, .step-card { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
-        .feat-card:hover, .value-card:hover, .step-card:hover { transform: translateY(-3px); box-shadow: 0 16px 38px rgba(15,23,42,0.08); border-color: rgba(217,119,6,0.22); }
-        .cta-btn     { transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s; }
-        .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(217,119,6,0.28); }
-        .cta-btn:active { transform: translateY(0); }
-        .logo-float  { animation: float 4s ease-in-out infinite; }
-        .hero-preview { width:100%; max-width:980px; }
-        .preview-grid { display:grid; grid-template-columns:1.1fr .9fr; gap:18px; }
-        .feature-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; width:100%; }
-        .value-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; width:100%; }
-        .step-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; width:100%; }
-        .plans-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; width:100%; align-items:stretch; }
-        @media(max-width:900px){
-          .preview-grid, .feature-grid, .value-grid, .step-grid, .plans-grid { grid-template-columns:1fr; }
-          .hero-preview { max-width:640px; }
-        }
-        @media(max-width:640px){
-          .nav-actions { gap:8px!important; }
-          .nav-free { display:none!important; }
-          .hero-break { display:none; }
-        }
-      `}</style>
+      <style>{CSS}</style>
 
-      <nav style={{ ...S.nav, opacity: visible ? 1 : 0, transition: 'opacity 0.4s' }}>
+      {/* ─── Nav ─────────────────────────────────────── */}
+      <nav style={S.nav}>
         <div style={S.navInner}>
-          <div style={S.logoRow}>
-            <div style={S.logoMark} className="logo-float"><span style={S.logoSym}>F</span></div>
-            <div>
-              <div style={S.logoName}>FinWise</div>
-              <div style={S.logoTag}>YOUR MONEY, MASTERED</div>
+          <button style={S.logoRow} onClick={() => scrollTo('top')}>
+            <div style={S.logoMark}><span style={S.logoSym}>P</span></div>
+            <div style={{ textAlign: 'left' }}>
+              <div style={S.logoName}>PesaFlow</div>
+              <div style={S.logoTag}>TRACK YOUR MONEY. GROW YOUR WEALTH. SLEEP BETTER.</div>
             </div>
+          </button>
+
+          <div className="lp-nav-links" style={S.navLinks}>
+            {NAV_LINKS.map(l => (
+              <button key={l.label} style={S.navLink} className="lp-navlink" onClick={() => nav(l.target)}>{l.label}</button>
+            ))}
           </div>
-          <div className="nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button style={S.navLogin} className="cta-btn" onClick={onLogin}>Log In</button>
-            <button style={S.navCta} className="cta-btn nav-free" onClick={() => onSelectTier('free')}>
-              Get Started Free <ChevronRight size={16} strokeWidth={2.4} />
+
+          <div className="lp-nav-actions" style={S.navActions}>
+            <button style={S.btnGhost} className="lp-btn" onClick={onLogin}>Log in</button>
+            <button style={S.btnPrimary} className="lp-btn" onClick={goFree}>Get Started Free</button>
+          </div>
+
+          <div className="lp-mobile-actions" style={S.mobileActions}>
+            <button style={S.btnPrimary} className="lp-btn" onClick={onLogin}>Log in</button>
+            <button className="lp-hamburger" style={S.hamburger} onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
+              {menuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
+
+        {menuOpen && (
+          <div className="lp-mobile-menu" style={S.mobileMenu}>
+            {NAV_LINKS.map(l => (
+              <button key={l.label} style={S.mobileLink} onClick={() => nav(l.target)}>{l.label}</button>
+            ))}
+            <button style={{ ...S.btnGhost, width: '100%', justifyContent: 'center' }} onClick={() => { setMenuOpen(false); onLogin(); }}>Log in</button>
+            <button style={{ ...S.btnPrimary, width: '100%', justifyContent: 'center' }} onClick={() => { setMenuOpen(false); goFree(); }}>Get Started Free</button>
+          </div>
+        )}
       </nav>
 
-      <section style={S.hero} className="land-hero">
-        <div style={S.heroBadge}>
-          <Flag size={14} strokeWidth={2.3} />
-          Built for Kenya · Launch offer ends {INTRO_END_LABEL}
-        </div>
-        <h1 style={S.headline}>
-          Money clarity for every<br className="hero-break" /> Kenyan household
-        </h1>
-        <p style={S.heroSub}>
-          FinWise brings your spending, bills, goals, investments, net worth, alerts, and AI guidance into one polished money dashboard.
-        </p>
-        <div style={S.heroBtns}>
-          <button style={S.primaryBtn} className="cta-btn" onClick={() => onSelectTier('gold')}>
-            Start Gold for KES 20 <ChevronRight size={17} strokeWidth={2.5} />
-          </button>
-          <a style={S.downloadBtn} className="cta-btn" href={ANDROID_APK_URL} download>
-            <Download size={17} strokeWidth={2.5} /> Install Android App
-          </a>
-          <button style={S.secondaryBtn} className="cta-btn" onClick={() => document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' })}>
-            View Plans <ChevronDown size={17} strokeWidth={2.5} />
-          </button>
-        </div>
-        <div style={S.priceNote}>Silver is KES 10 and Gold is KES 20 for the first 30-day month. Standard pricing starts after {INTRO_END_LABEL}: Silver KES 299/month, Gold KES 599/month.</div>
-        <div style={S.installNote}>Android visitors can download the app directly. iPhone visitors can use Safari's Share button and choose Add to Home Screen.</div>
+      <div id="top" />
 
-        <div className="hero-preview" style={S.previewShell}>
-          <div style={S.previewTopBar}>
-            <div style={S.previewTitle}>FinWise monthly command center</div>
-            <div style={S.previewPill}><Sparkles size={13} /> Live plan</div>
-          </div>
-          <div className="preview-grid">
-            <div style={S.previewPanelMain}>
-              <div style={S.previewLabel}>Spending health</div>
-              <div style={S.previewScore}>84</div>
-              <div style={S.previewCopy}>Strong month. Keep subscriptions and dining out below target to protect your goal contributions.</div>
-              <div style={S.previewBars}>
-                {[
-                  ['Essentials', '72%', '#2563EB'],
-                  ['Goals', '58%', '#059669'],
-                  ['Investments', '41%', '#D97706'],
-                ].map(([label, width, color]) => (
-                  <div key={label}>
-                    <div style={S.previewBarMeta}><span>{label}</span><span>{width}</span></div>
-                    <div style={S.previewTrack}><div style={{ ...S.previewFill, width, background: color }} /></div>
-                  </div>
-                ))}
+      {/* ─── Hero ────────────────────────────────────── */}
+      <section style={S.hero}>
+        <div className="lp-hero-grid" style={S.heroGrid}>
+          <div style={S.heroText}>
+            <h1 style={S.headline}>Money clarity for every <span style={{ color: C.orangeDark }}>Kenyan</span> household</h1>
+            <p style={S.heroSub}>
+              PesaFlow brings your spending, bills, goals, investments, net worth, alerts, and AI guidance into one polished money dashboard.
+            </p>
+            <div style={S.heroBtns}>
+              <button style={S.btnPrimaryLg} className="lp-btn" onClick={goFree}>Get Started Free <ArrowRight size={17} strokeWidth={2.4} /></button>
+              <a style={S.btnWhite} className="lp-btn" href={ANDROID_APK_URL} download><Download size={17} strokeWidth={2.3} /> Android App</a>
+              <button style={S.btnWhite} className="lp-btn" onClick={() => scrollTo('plans')}>View Plans <ChevronDown size={16} strokeWidth={2.3} /></button>
+            </div>
+            <div className="lp-hero-trust" style={S.heroTrust}>
+              <div style={S.heroTrustItem}>
+                <LockKeyhole size={18} strokeWidth={2.2} style={{ color: C.orange, flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={S.heroTrustTitle}>Bank-level security</div>
+                  <div style={S.heroTrustDesc}>Your data is encrypted and always protected.</div>
+                </div>
+              </div>
+              <div style={S.heroTrustItem}>
+                <Users size={18} strokeWidth={2.2} style={{ color: C.orange, flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={S.heroTrustTitle}>Trusted by 12,000+ Kenyans</div>
+                  <div style={S.heroTrustDesc}>Join thousands taking control of their money.</div>
+                </div>
               </div>
             </div>
-            <div style={S.previewSide}>
-              <div style={S.previewMini}><ReceiptText size={18} /><span>Bills due</span><strong>KES 12,400</strong></div>
-              <div style={S.previewMini}><Goal size={18} /><span>Goal progress</span><strong>68%</strong></div>
-              <div style={S.previewMini}><TrendingUp size={18} /><span>Portfolio</span><strong>+7.2%</strong></div>
-            </div>
           </div>
+
+          <DashboardPreview />
         </div>
       </section>
 
-      <section style={S.statsRow} className="land-stats">
-        {STATS.map(s => {
-          const StatIcon = s.icon;
-          return (
-            <div key={s.label} style={S.statItem}>
-              <div style={S.statValue}>{s.value}{StatIcon && <StatIcon size={21} strokeWidth={2.2} style={{ fill: '#D97706' }} />}</div>
-              <div style={S.statLabel}>{s.label}</div>
-            </div>
-          );
-        })}
-      </section>
-
-      <section style={S.section} className="land-section">
-        <div style={S.sectionLabel}>WHY FINWISE</div>
-        <h2 style={S.sectionTitle}>A personal finance workspace that feels calm, useful, and complete</h2>
-        <div className="value-grid">
-          {VALUE_POINTS.map(item => {
-            const Icon = item.icon;
+      {/* ─── Stats ───────────────────────────────────── */}
+      <section style={S.statsWrap}>
+        <div style={S.statsCard} className="lp-stats-grid">
+          {STATS.map(s => {
+            const Icon = s.icon;
             return (
-              <div key={item.title} className="value-card" style={S.valueCard}>
-                <div style={S.valueIcon}><Icon size={23} strokeWidth={2.1} /></div>
-                <div style={S.valueTitle}>{item.title}</div>
-                <div style={S.valueDesc}>{item.desc}</div>
+              <div key={s.label} style={S.statItem}>
+                <div style={S.statIcon}><Icon size={20} strokeWidth={2.2} /></div>
+                <div style={S.statValue}>{s.value}</div>
+                <div style={S.statLabel}>{s.label}</div>
               </div>
             );
           })}
         </div>
       </section>
 
-      <section style={S.section} className="land-section">
+      {/* ─── Why PesaFlow ─────────────────────────────── */}
+      <section id="why" style={S.section}>
+        <div style={S.sectionLabel}>WHY FINWISE</div>
+        <h2 style={S.sectionTitle}>A personal finance workspace<br className="lp-brk" /> that feels calm, useful, and complete.</h2>
+        <div className="lp-grid-3" style={S.grid3}>
+          {VALUE_POINTS.map(v => {
+            const Icon = v.icon;
+            return (
+              <div key={v.title} style={S.card} className="lp-card">
+                <div style={{ ...S.cardIcon, background: '#FEF3E7', color: C.orangeDark }}><Icon size={22} strokeWidth={2.1} /></div>
+                <div style={S.cardTitle}>{v.title}</div>
+                <div style={S.cardDesc}>{v.desc}</div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ─── What you get ────────────────────────────── */}
+      <section id="features" style={S.section}>
         <div style={S.sectionLabel}>WHAT YOU GET</div>
         <h2 style={S.sectionTitle}>Everything you need to master your money</h2>
-        <div className="feature-grid">
-          {FEATURES.map((f, i) => {
+        <div className="lp-grid-3" style={S.grid3}>
+          {FEATURES.map(f => {
             const Icon = f.icon;
             return (
-              <div key={f.title} className="feat-card" style={{ ...S.featCard, animationDelay: `${i * 0.06}s` }}>
-                <div style={S.featIcon}><Icon size={25} strokeWidth={2.1} /></div>
-                <div style={S.featTitle}>{f.title}</div>
-                <div style={S.featDesc}>{f.desc}</div>
+              <div key={f.title} style={S.card} className="lp-card">
+                <div style={{ ...S.cardIcon, background: `${f.color}14`, color: f.color }}><Icon size={22} strokeWidth={2.1} /></div>
+                <div style={S.cardTitle}>{f.title}</div>
+                <div style={S.cardDesc}>{f.desc}</div>
               </div>
             );
           })}
         </div>
       </section>
 
-      <section style={S.section} className="land-section">
+      {/* ─── How it works ────────────────────────────── */}
+      <section id="how" style={S.section}>
         <div style={S.sectionLabel}>HOW IT WORKS</div>
         <h2 style={S.sectionTitle}>From scattered money notes to a monthly plan</h2>
-        <div className="step-grid">
-          {STEPS.map((step, index) => {
+        <div className="lp-steps" style={S.stepsRow}>
+          {STEPS.map((step, i) => {
             const Icon = step.icon;
             return (
-              <div key={step.title} className="step-card" style={S.stepCard}>
-                <div style={S.stepTop}><span style={S.stepNum}>{index + 1}</span><Icon size={22} strokeWidth={2.1} /></div>
-                <div style={S.stepTitle}>{step.title}</div>
-                <div style={S.stepDesc}>{step.desc}</div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section id="plans" style={S.section} className="land-section">
-        <div style={S.sectionLabel}>PRICING</div>
-        <h2 style={S.sectionTitle}>Launch pricing for your first 30-day month</h2>
-        <p style={S.sectionSub}>Transparent monthly access. The launch offer is available until {INTRO_END_LABEL}; standard prices are shown upfront.</p>
-        <div className="plans-grid">
-          {PLANS.map((plan) => {
-            const isPopular = plan.tier === 'gold';
-            const PlanIcon = plan.icon;
-            return (
-              <div
-                key={plan.tier}
-                className="plan-card"
-                style={{
-                  ...S.planCard,
-                  border: isPopular ? `2px solid ${plan.color}` : `1.5px solid rgba(10,22,40,0.09)`,
-                  boxShadow: isPopular ? `0 18px 52px rgba(217,119,6,0.18)` : S.planCard.boxShadow,
-                }}
-              >
-                {isPopular && (
-                  <div style={{ ...S.popularBadge, background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}>
-                    <Sparkles size={12} strokeWidth={2.4} /> BEST VALUE
+              <React.Fragment key={step.title}>
+                <div style={S.stepCard} className="lp-card">
+                  <div style={S.stepTop}>
+                    <span style={S.stepNum}>{i + 1}</span>
+                    <Icon size={20} strokeWidth={2.1} style={{ color: C.orange }} />
                   </div>
-                )}
-                <div style={{ ...S.planIcon, color: plan.color, background: `${plan.color}14`, borderColor: `${plan.color}35` }}>
-                  <PlanIcon size={27} strokeWidth={2.1} />
+                  <div style={S.cardTitle}>{step.title}</div>
+                  <div style={S.cardDesc}>{step.desc}</div>
                 </div>
-                <div style={{ ...S.planName, color: plan.color }}>{plan.name}</div>
-                <div style={S.planTagline}>{plan.tagline}</div>
-                <div style={S.planPriceRow}>
-                  {plan.price === 0
-                    ? <span style={S.planFree}>Free forever</span>
-                    : <>
-                        <div style={S.launchLabel}>Launch price</div>
-                        <span style={S.planAmount}>KES {plan.price.toLocaleString()}</span>
-                        <span style={S.planPer}>/first month</span>
-                        <div style={S.standardPrice}>Then KES {plan.standardPrice?.toLocaleString()}/month after {INTRO_END_LABEL}</div>
-                      </>
-                  }
-                </div>
-                <ul style={S.featureList}>
-                  {plan.features.map(f => (
-                    <li key={f} style={S.featureItem}>
-                      <Check size={15} strokeWidth={2.6} style={{ color: plan.price === 0 ? '#6B7280' : plan.color, flexShrink: 0 }} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  style={plan.price === 0 ? S.planBtnFree : { ...S.planBtnPaid, background: isPopular ? 'linear-gradient(135deg, #F59E0B, #D97706)' : '#0A1628' }}
-                  className="cta-btn"
-                  onClick={() => onSelectTier(plan.tier)}
-                >
-                  {plan.price === 0 ? 'Get Started Free' : `Subscribe — KES ${plan.price.toLocaleString()}`}
-                </button>
-              </div>
+                {i < STEPS.length - 1 && <ChevronRight size={22} className="lp-step-arrow" style={S.stepArrow} />}
+              </React.Fragment>
             );
           })}
         </div>
       </section>
 
-      <section style={S.trustStrip} className="land-section">
-        {TRUST_ITEMS.map((item, index) => {
-          const Icon = item.icon;
-          return (
-            <React.Fragment key={item.label}>
-              {index > 0 && <div style={S.trustDot}>·</div>}
-              <div style={S.trustItem}>
-                <Icon size={16} strokeWidth={2.2} style={{ color: '#D97706', flexShrink: 0 }} />
-                {item.label}
+      {/* ─── Pricing ─────────────────────────────────── */}
+      <section id="plans" style={S.section}>
+        <div style={S.sectionLabel}>PRICING</div>
+        <h2 style={S.sectionTitle}>Free while we grow — premium tools on the way</h2>
+        <p style={S.sectionSub}>Every everyday and planning tool is free for everyone. Advanced AI intelligence is coming soon.</p>
+        <div className="lp-plans" style={S.plansGrid}>
+          {/* Free */}
+          <div style={S.planCard} className="lp-card">
+            <div style={S.planName}>Free</div>
+            <div style={S.planSub}>Free forever</div>
+            <div style={S.planLead}>Everything you need to track, plan and save — for free.</div>
+            <ul style={S.featList}>
+              {FREE_FEATURES.map(f => (
+                <li key={f} style={S.featItem}><Check size={15} strokeWidth={2.6} style={{ color: '#16A34A', flexShrink: 0 }} /> {f}</li>
+              ))}
+            </ul>
+            <button style={S.planBtnFree} className="lp-btn" onClick={goFree}>Get Started Free</button>
+          </div>
+
+          {/* Gold (coming soon) */}
+          <div style={{ ...S.planCard, border: `2px solid ${C.orange}`, boxShadow: '0 20px 54px rgba(249,115,22,0.16)' }}>
+            <div style={S.comingBadge}><Sparkles size={12} strokeWidth={2.4} /> COMING SOON</div>
+            <div style={{ ...S.planIconWrap }}><Crown size={26} strokeWidth={2.1} style={{ color: C.orange }} /></div>
+            <div style={{ ...S.planName, color: C.orange }}>Gold</div>
+            <div style={S.planSub}>Premium · Launching soon</div>
+            <div style={S.planLead}>Advanced intelligence for deeper insights and smarter decisions.</div>
+            <ul style={S.featList}>
+              {GOLD_FEATURES.map(f => (
+                <li key={f} style={S.featItem}><Check size={15} strokeWidth={2.6} style={{ color: C.orange, flexShrink: 0 }} /> {f}</li>
+              ))}
+            </ul>
+            <button style={S.planBtnComing} disabled>Coming Soon</button>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Testimonials ────────────────────────────── */}
+      <section style={S.section}>
+        <div style={S.sectionLabel}>WHY THOUSANDS OF KENYANS TRUST FINWISE</div>
+        <div className="lp-grid-3" style={{ ...S.grid3, marginTop: 8 }}>
+          {MINI_TRUST.map(m => {
+            const Icon = m.icon;
+            return (
+              <div key={m.title} style={S.card} className="lp-card">
+                <div style={{ ...S.cardIcon, background: `${m.color}14`, color: m.color }}><Icon size={22} strokeWidth={2.1} /></div>
+                <div style={S.cardTitle}>{m.title}</div>
+                <div style={S.cardDesc}>{m.desc}</div>
               </div>
+            );
+          })}
+        </div>
+
+        <div style={S.quoteCard}>
+          <Quote size={30} strokeWidth={2} style={{ color: C.orange, opacity: 0.5 }} />
+          <p style={S.quoteText}>“{TESTIMONIALS[testi].quote}”</p>
+          <div style={S.quoteName}>— {TESTIMONIALS[testi].name}, {TESTIMONIALS[testi].place}</div>
+          <div style={S.dots}>
+            {TESTIMONIALS.map((_, i) => (
+              <button key={i} aria-label={`Testimonial ${i + 1}`} onClick={() => setTesti(i)}
+                style={{ ...S.dot, background: i === testi ? C.orange : 'rgba(15,27,45,0.18)', width: i === testi ? 22 : 8 }} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── CTA ─────────────────────────────────────── */}
+      <section style={S.ctaWrap}>
+        <h2 style={{ ...S.sectionTitle, marginBottom: 10 }}>Ready to take control of your money?</h2>
+        <p style={{ ...S.sectionSub, marginBottom: 22 }}>Join 12,000+ Kenyans already building a better financial future.</p>
+        <div style={{ ...S.heroBtns, justifyContent: 'center' }}>
+          <button style={S.btnPrimaryLg} className="lp-btn" onClick={goFree}>Get Started Free <ArrowRight size={17} strokeWidth={2.4} /></button>
+          <a style={S.btnWhite} className="lp-btn" href={ANDROID_APK_URL} download><Download size={17} strokeWidth={2.3} /> Android App</a>
+        </div>
+      </section>
+
+      {/* ─── Trust strip ─────────────────────────────── */}
+      <section style={S.trustStrip}>
+        {[
+          { icon: LockKeyhole, label: 'PIN protected access' },
+          { icon: CircleDollarSign, label: 'KES currency support' },
+          { icon: XCircle, label: 'No bank login required' },
+        ].map((t, i) => {
+          const Icon = t.icon;
+          return (
+            <React.Fragment key={t.label}>
+              {i > 0 && <span style={{ color: 'rgba(15,27,45,0.2)' }}>·</span>}
+              <span style={S.trustItem}><Icon size={16} strokeWidth={2.2} style={{ color: C.orange }} /> {t.label}</span>
             </React.Fragment>
           );
         })}
       </section>
 
-      <footer style={S.footer} className="land-section">
-        <div style={S.footerLogo}>
-          <div style={{ ...S.logoMark, width: 32, height: 32 }}><span style={{ ...S.logoSym, fontSize: 16 }}>F</span></div>
-          <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 18, fontWeight: 700, color: '#D97706' }}>FinWise</span>
+      {/* ─── Footer ──────────────────────────────────── */}
+      <footer id="footer" style={S.footer}>
+        <div className="lp-footer-grid" style={S.footerGrid}>
+          <div style={{ maxWidth: 280 }}>
+            <div style={S.footerLogoRow}>
+              <div style={{ ...S.logoMark, width: 34, height: 34 }}><span style={{ ...S.logoSym, fontSize: 17 }}>P</span></div>
+              <div>
+                <div style={{ ...S.logoName, color: '#fff' }}>PesaFlow</div>
+                <div style={{ ...S.logoTag, color: 'rgba(255,255,255,0.5)' }}>TRACK YOUR MONEY. GROW YOUR WEALTH. SLEEP BETTER.</div>
+              </div>
+            </div>
+            <p style={S.footerBlurb}>A calm, private, and powerful way for Kenyan households to plan, grow, and protect their money.</p>
+            <div style={S.socialRow}>
+              {SOCIAL_ICONS.map((Ico, i) => (
+                <a key={i} href="#" style={S.socialBtn} aria-label="social"><Ico size={16} /></a>
+              ))}
+            </div>
+          </div>
+
+          {FOOTER_COLS.map(col => (
+            <div key={col.heading}>
+              <div style={S.footerHeading}>{col.heading}</div>
+              {col.links.map(l => (
+                <button key={l.label} style={S.footerLink} onClick={() => nav(l.target)}>{l.label}</button>
+              ))}
+            </div>
+          ))}
+
+          <div style={{ minWidth: 220 }}>
+            <div style={S.footerHeading}>Stay in the loop</div>
+            <p style={{ ...S.footerBlurb, marginTop: 0 }}>Get updates on new features and smart money tips.</p>
+            <form style={S.newsletter} onSubmit={subscribe}>
+              <input style={S.newsInput} type="email" required value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder={subscribed ? 'Thanks — you’re in!' : 'Enter your email'} disabled={subscribed} />
+              <button style={S.newsBtn} type="submit" aria-label="Subscribe" disabled={subscribed}><ArrowRight size={16} strokeWidth={2.4} /></button>
+            </form>
+          </div>
         </div>
-        <div style={S.footerText}>© {new Date().getFullYear()} FinWise · Smart money management for every Kenyan</div>
+        <div style={S.footerBottom}>© {new Date().getFullYear()} PesaFlow. Smart money management for every Kenyan.</div>
       </footer>
     </div>
   );
 };
 
+/* ── Decorative in-hero dashboard preview ─────────────────── */
+const DashboardPreview: React.FC = () => (
+  <div style={S.previewShell} className="lp-preview">
+    <div style={S.previewBar}>
+      {['#F87171', '#FBBF24', '#34D399'].map(c => <span key={c} style={{ ...S.previewDot, background: c }} />)}
+    </div>
+    <div style={S.previewBody}>
+      <div style={S.previewSidebar} className="lp-preview-side">
+        <div style={S.previewBrand}><span style={S.previewBrandF}>P</span> PesaFlow</div>
+        {['Overview', 'Transactions', 'Budgets', 'Goals', 'Investments', 'Bills & Alerts', 'Net Worth'].map((it, i) => (
+          <div key={it} style={{ ...S.previewNavItem, ...(i === 0 ? S.previewNavActive : {}) }}>
+            <span style={{ ...S.previewNavDot, background: i === 0 ? C.orange : 'rgba(255,255,255,0.25)' }} /> {it}
+          </div>
+        ))}
+      </div>
+      <div style={S.previewMain}>
+        <div style={S.previewHeadRow}>
+          <div>
+            <div style={S.previewH}>Overview</div>
+            <div style={S.previewSubtle}>Good morning, Wanjiku</div>
+          </div>
+          <div style={S.previewChip}>May 2026</div>
+        </div>
+        <div style={S.previewStatRow}>
+          {[
+            ['Total Balance', 'KES 124,000', '#16A34A'],
+            ['Bills Due', 'KES 12,400', '#EA580C'],
+            ['Monthly Savings', 'KES 24,000', '#2563EB'],
+          ].map(([l, v, col]) => (
+            <div key={l} style={S.previewStat}>
+              <div style={S.previewStatL}>{l}</div>
+              <div style={{ ...S.previewStatV, color: col as string }}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={S.previewSplit}>
+          <div style={S.previewPanel}>
+            <div style={S.previewStatL}>Spending Health</div>
+            <div style={S.previewScore}>84</div>
+            {[['Essentials', '72%', '#2563EB'], ['Goals', '58%', '#16A34A'], ['Investments', '41%', '#EA580C']].map(([l, w, col]) => (
+              <div key={l as string} style={{ marginTop: 7 }}>
+                <div style={S.previewBarMeta}><span>{l}</span><span>{w}</span></div>
+                <div style={S.previewTrack}><div style={{ height: '100%', borderRadius: 3, width: w as string, background: col as string }} /></div>
+              </div>
+            ))}
+          </div>
+          <div style={S.previewPanel}>
+            <div style={S.previewStatL}>Spending Breakdown</div>
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+              <Donut />
+            </div>
+            <div style={S.previewLegend}>
+              {[['Housing', '#2563EB'], ['Food', '#16A34A'], ['Transport', '#EA580C'], ['Other', '#8A93A5']].map(([l, c]) => (
+                <span key={l as string} style={S.previewLegendItem}><span style={{ width: 7, height: 7, borderRadius: 2, background: c as string }} /> {l}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const Donut: React.FC = () => {
+  const segs = [['#2563EB', 35], ['#16A34A', 25], ['#EA580C', 22], ['#8A93A5', 18]] as [string, number][];
+  const R = 30, CIRC = 2 * Math.PI * R;
+  let offset = 0;
+  return (
+    <svg width="96" height="96" viewBox="0 0 80 80">
+      <circle cx="40" cy="40" r={R} fill="none" stroke="#EEF1F5" strokeWidth="12" />
+      {segs.map(([col, pct], i) => {
+        const len = (pct / 100) * CIRC;
+        const el = (
+          <circle key={i} cx="40" cy="40" r={R} fill="none" stroke={col} strokeWidth="12"
+            strokeDasharray={`${len} ${CIRC - len}`} strokeDashoffset={-offset} transform="rotate(-90 40 40)" />
+        );
+        offset += len;
+        return el;
+      })}
+      <text x="40" y="38" textAnchor="middle" fontSize="7" fontWeight="700" fill={C.ink} fontFamily="Karla">KES 54,000</text>
+      <text x="40" y="48" textAnchor="middle" fontSize="5.5" fill={C.muted} fontFamily="Karla">Total spend</text>
+    </svg>
+  );
+};
+
+const CSS = `
+  .lp-btn { transition: transform .15s ease, box-shadow .15s ease, opacity .15s; cursor: pointer; }
+  .lp-btn:hover { transform: translateY(-1px); }
+  .lp-navlink:hover { color: ${C.orangeDark}; }
+  .lp-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+  .lp-card:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(15,27,45,0.09); border-color: rgba(249,115,22,0.28); }
+  .lp-hamburger { display: none; }
+  .lp-mobile-menu { display: none; }
+  .lp-mobile-actions { display: none; }
+  @media (max-width: 940px) {
+    .lp-nav-links, .lp-nav-actions { display: none !important; }
+    .lp-hamburger { display: inline-flex !important; }
+    .lp-mobile-actions { display: inline-flex !important; }
+    .lp-mobile-menu { display: flex !important; }
+    .lp-hero-grid { grid-template-columns: 1fr !important; }
+    .lp-grid-3, .lp-plans, .lp-footer-grid { grid-template-columns: 1fr !important; }
+    .lp-steps { flex-direction: column !important; }
+    .lp-step-arrow { transform: rotate(90deg); align-self: center; }
+    .lp-brk { display: none; }
+  }
+  @media (max-width: 620px) {
+    .lp-stats-grid { grid-template-columns: 1fr 1fr !important; }
+  }
+`;
+
 const S: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', background: 'linear-gradient(180deg,#FFFCF7 0%,#FFFFFF 30%,#F8FAFC 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: 'DM Sans, sans-serif', color: '#0A1628' },
+  page: { minHeight: '100vh', background: `linear-gradient(180deg, ${C.cream} 0%, #FFFFFF 420px)`, color: C.ink, fontFamily: 'Karla, system-ui, sans-serif' },
 
-  nav: { width: '100%', position: 'sticky', top: 0, zIndex: 100, background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(10,22,40,0.07)' },
-  navInner: { maxWidth: 1120, margin: '0 auto', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  navCta: { padding: '9px 18px', background: 'linear-gradient(135deg, #F59E0B, #D97706)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  navLogin: { padding: '9px 20px', background: '#fff', color: '#0A1628', border: '1px solid rgba(10,22,40,0.12)', borderRadius: 10, fontWeight: 700, fontSize: 14, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer' },
+  nav: { position: 'sticky', top: 0, zIndex: 50, background: 'rgba(253,246,238,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: `1px solid ${C.line}` },
+  navInner: { maxWidth: 1180, margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  logoRow: { display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0 },
+  logoMark: { width: 38, height: 38, borderRadius: 10, background: `linear-gradient(135deg, ${C.orange}, ${C.orangeDark})`, display: 'grid', placeItems: 'center', flexShrink: 0, boxShadow: '0 6px 16px rgba(234,88,12,0.3)' },
+  logoSym: { fontFamily: 'Cormorant Garamond, serif', fontSize: 19, fontWeight: 700, color: '#fff' },
+  logoName: { fontFamily: 'Cormorant Garamond, serif', fontSize: 19, fontWeight: 700, color: C.ink, lineHeight: 1.05 },
+  logoTag: { fontSize: 8.5, letterSpacing: '0.12em', color: C.muted, fontWeight: 700 },
+  navLinks: { display: 'flex', alignItems: 'center', gap: 26 },
+  navLink: { background: 'none', border: 'none', fontSize: 14, fontWeight: 600, color: C.body, cursor: 'pointer', fontFamily: 'Karla, sans-serif', transition: 'color .15s' },
+  navActions: { display: 'flex', alignItems: 'center', gap: 10 },
+  hamburger: { alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, cursor: 'pointer' },
+  mobileActions: { alignItems: 'center', gap: 8 },
+  mobileMenu: { flexDirection: 'column', gap: 8, padding: '10px 20px 18px', borderTop: `1px solid ${C.line}`, background: 'rgba(253,246,238,0.98)' },
+  mobileLink: { textAlign: 'left', background: 'none', border: 'none', padding: '10px 4px', fontSize: 15, fontWeight: 600, color: C.ink, cursor: 'pointer', borderBottom: `1px solid ${C.line}`, fontFamily: 'Karla, sans-serif' },
 
-  logoRow: { display: 'flex', alignItems: 'center', gap: 10 },
-  logoMark: { width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(145deg, #F59E0B, #D97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 10px 22px rgba(217,119,6,0.22)' },
-  logoSym: { fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 800, color: '#fff' },
-  logoName: { fontFamily: 'Cormorant Garamond, serif', fontSize: 21, fontWeight: 700, color: '#B45309', lineHeight: 1.1 },
-  logoTag: { fontSize: 8, color: '#9CA3AF', letterSpacing: '0.14em' },
+  btnGhost: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, fontSize: 14, fontWeight: 700, fontFamily: 'Karla, sans-serif' },
+  btnPrimary: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${C.orange}, ${C.orangeDark})`, color: '#fff', fontSize: 14, fontWeight: 800, fontFamily: 'Karla, sans-serif', boxShadow: '0 8px 22px rgba(234,88,12,0.28)' },
+  btnPrimaryLg: { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 24px', borderRadius: 12, border: 'none', background: `linear-gradient(135deg, ${C.orange}, ${C.orangeDark})`, color: '#fff', fontSize: 15, fontWeight: 800, fontFamily: 'Karla, sans-serif', boxShadow: '0 12px 30px rgba(234,88,12,0.3)' },
+  btnWhite: { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 20px', borderRadius: 12, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, fontSize: 15, fontWeight: 700, fontFamily: 'Karla, sans-serif', textDecoration: 'none', boxShadow: C.cardShadow },
 
-  hero: { width: '100%', maxWidth: 1120, textAlign: 'center', padding: '72px 24px 54px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 19 },
-  heroBadge: { fontSize: 13, fontWeight: 800, color: '#B45309', background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 999, padding: '7px 16px', display: 'inline-flex', alignItems: 'center', gap: 7 },
-  headline: { fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(42px, 7vw, 76px)', fontWeight: 700, color: '#0A1628', lineHeight: 1.02, margin: 0, letterSpacing: 0 },
-  heroSub: { fontSize: 18, color: '#4B5563', lineHeight: 1.72, maxWidth: 680, margin: 0 },
-  heroBtns: { display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' },
-  primaryBtn: { padding: '14px 30px', background: 'linear-gradient(135deg, #F59E0B, #D97706)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  secondaryBtn: { padding: '14px 26px', background: '#fff', color: '#B45309', border: '1.5px solid rgba(217,119,6,0.28)', borderRadius: 12, fontWeight: 800, fontSize: 16, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  downloadBtn: { padding: '14px 24px', background: '#ECFDF5', color: '#047857', border: '1.5px solid rgba(5,150,105,0.24)', borderRadius: 12, fontWeight: 800, fontSize: 16, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none' },
-  priceNote: { maxWidth: 760, fontSize: 13, color: '#6B7280', lineHeight: 1.6, background: '#fff', border: '1px solid rgba(10,22,40,0.08)', borderRadius: 12, padding: '10px 14px' },
-  installNote: { maxWidth: 720, textAlign: 'center', color: '#334155', fontSize: 13, lineHeight: 1.55, background: '#F8FAFC', border: '1px solid rgba(15,23,42,0.08)', borderRadius: 10, padding: '10px 14px' },
+  hero: { maxWidth: 1180, margin: '0 auto', padding: '46px 20px 30px' },
+  heroGrid: { display: 'grid', gridTemplateColumns: '1fr 1.05fr', gap: 40, alignItems: 'center' },
+  heroText: {},
+  headline: { fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(38px, 6vw, 60px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-0.01em', margin: 0, color: C.ink },
+  heroSub: { fontSize: 16, color: C.body, lineHeight: 1.65, margin: '20px 0 26px', maxWidth: 460 },
+  heroBtns: { display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 26 },
+  heroTrust: { display: 'flex', flexWrap: 'wrap', gap: 14 },
+  heroTrustItem: { display: 'flex', gap: 10, alignItems: 'flex-start', flex: '1 1 220px', background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, padding: '13px 15px', boxShadow: C.cardShadow },
+  heroTrustTitle: { fontSize: 13, fontWeight: 800, color: C.ink },
+  heroTrustDesc: { fontSize: 12, color: C.muted, marginTop: 2, lineHeight: 1.4 },
 
-  previewShell: { marginTop: 22, background: '#0A1628', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 22, padding: 18, boxShadow: '0 28px 80px rgba(10,22,40,0.22)', textAlign: 'left' },
-  previewTopBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' },
-  previewTitle: { color: '#F9FAFB', fontSize: 14, fontWeight: 800 },
-  previewPill: { display: 'inline-flex', alignItems: 'center', gap: 6, color: '#FDE68A', background: 'rgba(245,158,11,0.14)', border: '1px solid rgba(245,158,11,0.28)', borderRadius: 999, padding: '6px 10px', fontSize: 12, fontWeight: 800 },
-  previewPanelMain: { background: 'linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.06))', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, padding: 22 },
-  previewLabel: { color: 'rgba(255,255,255,0.56)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' },
-  previewScore: { fontFamily: 'Cormorant Garamond, serif', fontSize: 72, color: '#F59E0B', fontWeight: 700, lineHeight: 1 },
-  previewCopy: { color: 'rgba(255,255,255,0.74)', fontSize: 14, lineHeight: 1.6, maxWidth: 520 },
-  previewBars: { display: 'flex', flexDirection: 'column', gap: 12, marginTop: 22 },
-  previewBarMeta: { display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 6 },
-  previewTrack: { height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
-  previewFill: { height: '100%', borderRadius: 999 },
-  previewSide: { display: 'flex', flexDirection: 'column', gap: 12 },
-  previewMini: { flex: 1, minHeight: 88, display: 'grid', gridTemplateColumns: 'auto 1fr', alignItems: 'center', columnGap: 12, background: '#fff', borderRadius: 15, padding: '15px 16px', color: '#0A1628' },
+  statsWrap: { maxWidth: 1080, margin: '0 auto', padding: '10px 20px 20px' },
+  statsCard: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 18, padding: '26px 20px', boxShadow: C.cardShadow },
+  statItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6 },
+  statIcon: { color: C.orange, marginBottom: 2 },
+  statValue: { fontFamily: 'Cormorant Garamond, serif', fontSize: 30, fontWeight: 700, color: C.ink, lineHeight: 1 },
+  statLabel: { fontSize: 12.5, color: C.muted, fontWeight: 600 },
 
-  statsRow: { width: '100%', maxWidth: 920, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 1, background: 'rgba(10,22,40,0.06)', border: '1px solid rgba(10,22,40,0.06)', margin: '0 0 76px' },
-  statItem: { background: '#fff', padding: '28px 20px', textAlign: 'center' },
-  statValue: { fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 700, color: '#D97706', marginBottom: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  statLabel: { fontSize: 13, color: '#6B7280' },
+  section: { maxWidth: 1080, margin: '0 auto', padding: '46px 20px' },
+  sectionLabel: { textAlign: 'center', fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', color: C.orange, marginBottom: 12 },
+  sectionTitle: { textAlign: 'center', fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(26px, 4vw, 38px)', fontWeight: 700, color: C.ink, lineHeight: 1.18, margin: 0 },
+  sectionSub: { textAlign: 'center', fontSize: 15, color: C.body, lineHeight: 1.6, maxWidth: 620, margin: '14px auto 0' },
 
-  section: { width: '100%', maxWidth: 1120, padding: '0 24px 82px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  sectionLabel: { fontSize: 11, fontWeight: 900, color: '#B45309', letterSpacing: '0.14em', marginBottom: 12 },
-  sectionTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(28px, 4vw, 44px)', fontWeight: 700, color: '#0A1628', textAlign: 'center', margin: '0 0 34px', lineHeight: 1.14, maxWidth: 760 },
-  sectionSub: { fontSize: 15, color: '#6B7280', textAlign: 'center', margin: '-22px 0 40px', maxWidth: 660, lineHeight: 1.65 },
+  grid3: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 18, marginTop: 30 },
+  card: { background: '#fff', border: `1px solid ${C.line}`, borderRadius: 16, padding: '24px 22px', boxShadow: C.cardShadow },
+  cardIcon: { width: 46, height: 46, borderRadius: 12, display: 'grid', placeItems: 'center', marginBottom: 16 },
+  cardTitle: { fontSize: 16, fontWeight: 800, color: C.ink, marginBottom: 8 },
+  cardDesc: { fontSize: 13.5, color: C.body, lineHeight: 1.6 },
 
-  valueCard: { background: '#fff', border: '1px solid rgba(10,22,40,0.08)', borderRadius: 16, padding: '24px 22px', minHeight: 190 },
-  valueIcon: { width: 48, height: 48, borderRadius: 14, marginBottom: 16, display: 'grid', placeItems: 'center', color: '#D97706', background: 'rgba(217,119,6,0.09)', border: '1px solid rgba(217,119,6,0.16)' },
-  valueTitle: { fontSize: 17, fontWeight: 800, color: '#0A1628', marginBottom: 8 },
-  valueDesc: { fontSize: 14, color: '#6B7280', lineHeight: 1.65 },
+  stepsRow: { display: 'flex', alignItems: 'stretch', gap: 12, marginTop: 30 },
+  stepCard: { flex: 1, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 16, padding: '22px 20px', boxShadow: C.cardShadow },
+  stepTop: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 },
+  stepNum: { width: 28, height: 28, borderRadius: '50%', background: C.ink, color: '#fff', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800, flexShrink: 0 },
+  stepArrow: { color: 'rgba(15,27,45,0.25)', alignSelf: 'center', flexShrink: 0 },
 
-  featCard: { background: '#fff', border: '1px solid rgba(10,22,40,0.08)', borderRadius: 16, padding: '24px 22px', cursor: 'default', minHeight: 178 },
-  featIcon: { width: 48, height: 48, borderRadius: 14, marginBottom: 16, display: 'grid', placeItems: 'center', color: '#D97706', background: 'rgba(217,119,6,0.09)', border: '1px solid rgba(217,119,6,0.16)' },
-  featTitle: { fontSize: 17, fontWeight: 800, color: '#0A1628', marginBottom: 8 },
-  featDesc: { fontSize: 14, color: '#6B7280', lineHeight: 1.65 },
+  plansGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 780, margin: '30px auto 0' },
+  planCard: { position: 'relative', background: '#fff', border: `1.5px solid ${C.line}`, borderRadius: 18, padding: '30px 26px', boxShadow: C.cardShadow, display: 'flex', flexDirection: 'column' },
+  planIconWrap: { width: 50, height: 50, borderRadius: 14, background: '#FEF3E7', display: 'grid', placeItems: 'center', margin: '0 auto 6px' },
+  comingBadge: { position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 900, letterSpacing: '0.06em', color: '#fff', background: `linear-gradient(135deg, ${C.orange}, ${C.orangeDark})`, padding: '5px 14px', borderRadius: 999, whiteSpace: 'nowrap' },
+  planName: { fontFamily: 'Cormorant Garamond, serif', fontSize: 27, fontWeight: 700, textAlign: 'center', color: C.ink },
+  planSub: { textAlign: 'center', fontSize: 13, color: C.muted, marginTop: 2 },
+  planLead: { textAlign: 'center', fontSize: 13, color: C.body, lineHeight: 1.55, margin: '14px 0 18px' },
+  featList: { listStyle: 'none', padding: 0, margin: '0 0 22px', display: 'flex', flexDirection: 'column', gap: 11, flex: 1 },
+  featItem: { display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: 13.5, color: C.body, lineHeight: 1.4 },
+  planBtnFree: { width: '100%', padding: '12px', borderRadius: 10, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, fontSize: 14, fontWeight: 800, fontFamily: 'Karla, sans-serif', cursor: 'pointer' },
+  planBtnComing: { width: '100%', padding: '12px', borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${C.orange}, ${C.orangeDark})`, color: '#fff', fontSize: 14, fontWeight: 800, fontFamily: 'Karla, sans-serif', opacity: 0.75, cursor: 'default' },
 
-  stepCard: { background: '#fff', border: '1px solid rgba(10,22,40,0.08)', borderRadius: 16, padding: '22px 22px 24px', minHeight: 160 },
-  stepTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#D97706', marginBottom: 22 },
-  stepNum: { width: 32, height: 32, borderRadius: 999, background: '#0A1628', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 900 },
-  stepTitle: { fontSize: 17, fontWeight: 800, color: '#0A1628', marginBottom: 8 },
-  stepDesc: { fontSize: 14, color: '#6B7280', lineHeight: 1.65 },
+  quoteCard: { maxWidth: 640, margin: '30px auto 0', background: '#fff', border: `1px solid ${C.line}`, borderRadius: 18, padding: '28px 30px', textAlign: 'center', boxShadow: C.cardShadow },
+  quoteText: { fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(19px, 3vw, 24px)', fontWeight: 600, color: C.ink, lineHeight: 1.4, margin: '10px 0 14px' },
+  quoteName: { fontSize: 13, fontWeight: 700, color: C.orangeDark },
+  dots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 16 },
+  dot: { height: 8, borderRadius: 999, border: 'none', cursor: 'pointer', transition: 'all .2s', padding: 0 },
 
-  planCard: { background: '#fff', borderRadius: 18, padding: '32px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', position: 'relative', boxShadow: '0 8px 28px rgba(10,22,40,0.06)' },
-  popularBadge: { position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)', fontSize: 10, fontWeight: 900, color: '#fff', padding: '5px 14px', borderRadius: 999, letterSpacing: '0.08em', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 },
-  planIcon: { width: 54, height: 54, borderRadius: 14, border: '1px solid', display: 'grid', placeItems: 'center', marginBottom: 14 },
-  planName: { fontFamily: 'Cormorant Garamond, serif', fontSize: 28, fontWeight: 700, marginBottom: 4 },
-  planTagline: { fontSize: 13, color: '#6B7280', minHeight: 38, lineHeight: 1.45, marginBottom: 12 },
-  planPriceRow: { marginBottom: 24, minHeight: 100 },
-  launchLabel: { display: 'inline-flex', color: '#B45309', background: 'rgba(217,119,6,0.09)', border: '1px solid rgba(217,119,6,0.16)', borderRadius: 999, padding: '4px 9px', fontSize: 10, fontWeight: 900, marginBottom: 7, textTransform: 'uppercase' },
-  planFree: { fontSize: 16, fontWeight: 700, color: '#6B7280' },
-  planAmount: { fontFamily: 'Cormorant Garamond, serif', fontSize: 34, fontWeight: 700, color: '#0A1628' },
-  planPer: { fontSize: 13, color: '#9CA3AF', marginLeft: 4 },
-  standardPrice: { fontSize: 12, color: '#6B7280', lineHeight: 1.5, maxWidth: 210, marginTop: 7 },
-  featureList: { listStyle: 'none', padding: 0, margin: '0 0 28px', width: '100%', textAlign: 'left', flex: 1 },
-  featureItem: { fontSize: 13, color: '#374151', padding: '7px 0', borderBottom: '1px solid rgba(10,22,40,0.05)', lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 8 },
-  planBtnFree: { width: '100%', padding: '12px', background: '#F9FAFB', color: '#6B7280', border: '1.5px solid rgba(10,22,40,0.1)', borderRadius: 10, fontWeight: 800, fontSize: 14, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer' },
-  planBtnPaid: { width: '100%', padding: '12px', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer' },
+  ctaWrap: { maxWidth: 720, margin: '0 auto', padding: '30px 20px 50px', textAlign: 'center' },
 
-  trustStrip: { width: '100%', background: '#fff', borderTop: '1px solid rgba(217,119,6,0.12)', borderBottom: '1px solid rgba(217,119,6,0.12)', padding: '18px 24px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 0 },
-  trustItem: { fontSize: 13, color: '#4B5563', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 7 },
-  trustDot: { color: '#D1D5DB' },
+  trustStrip: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 16, padding: '0 20px 44px', maxWidth: 900, margin: '0 auto' },
+  trustItem: { display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 600, color: C.body },
 
-  footer: { width: '100%', padding: '32px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 },
-  footerLogo: { display: 'flex', alignItems: 'center', gap: 8 },
-  footerText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center' },
+  footer: { background: C.ink, color: 'rgba(255,255,255,0.72)', padding: '46px 20px 26px' },
+  footerGrid: { maxWidth: 1080, margin: '0 auto', display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1.2fr', gap: 30 },
+  footerLogoRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 },
+  footerBlurb: { fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, margin: '0 0 16px' },
+  socialRow: { display: 'flex', gap: 10 },
+  socialBtn: { width: 34, height: 34, borderRadius: 9, display: 'grid', placeItems: 'center', background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)' },
+  footerHeading: { fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#fff', marginBottom: 14 },
+  footerLink: { display: 'block', background: 'none', border: 'none', padding: '5px 0', fontSize: 13.5, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', textAlign: 'left', fontFamily: 'Karla, sans-serif' },
+  newsletter: { display: 'flex', gap: 8, marginTop: 12 },
+  newsInput: { flex: 1, minWidth: 0, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 9, padding: '10px 12px', color: '#fff', fontSize: 13, fontFamily: 'Karla, sans-serif' },
+  newsBtn: { width: 42, flexShrink: 0, borderRadius: 9, border: 'none', background: `linear-gradient(135deg, ${C.orange}, ${C.orangeDark})`, color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' },
+  footerBottom: { maxWidth: 1080, margin: '32px auto 0', paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 12.5, color: 'rgba(255,255,255,0.45)', textAlign: 'center' },
+
+  // Dashboard preview
+  previewShell: { background: '#0F1B2D', borderRadius: 18, padding: 10, boxShadow: '0 30px 70px rgba(15,27,45,0.28)', border: '1px solid rgba(15,27,45,0.1)' },
+  previewBar: { display: 'flex', gap: 6, padding: '4px 8px 10px' },
+  previewDot: { width: 9, height: 9, borderRadius: '50%' },
+  previewBody: { display: 'flex', background: '#0F1B2D', borderRadius: 12, overflow: 'hidden', minHeight: 300 },
+  previewSidebar: { width: 128, flexShrink: 0, background: '#0B1422', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 3 },
+  previewBrand: { display: 'flex', alignItems: 'center', gap: 6, color: '#fff', fontSize: 12, fontWeight: 800, fontFamily: 'Cormorant Garamond, serif', marginBottom: 10, paddingLeft: 2 },
+  previewBrandF: { width: 18, height: 18, borderRadius: 5, background: `linear-gradient(135deg, ${C.orange}, ${C.orangeDark})`, display: 'grid', placeItems: 'center', fontSize: 11, color: '#fff' },
+  previewNavItem: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 10.5, color: 'rgba(255,255,255,0.55)', padding: '6px 7px', borderRadius: 7 },
+  previewNavActive: { background: 'rgba(255,255,255,0.08)', color: '#fff', fontWeight: 700 },
+  previewNavDot: { width: 5, height: 5, borderRadius: '50%', flexShrink: 0 },
+  previewMain: { flex: 1, background: '#F7F9FB', padding: 14, minWidth: 0 },
+  previewHeadRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  previewH: { fontSize: 15, fontWeight: 800, color: C.ink },
+  previewSubtle: { fontSize: 10.5, color: C.muted, marginTop: 1 },
+  previewChip: { fontSize: 9.5, fontWeight: 700, color: C.body, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 999, padding: '3px 9px' },
+  previewStatRow: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 10 },
+  previewStat: { background: '#fff', border: `1px solid ${C.line}`, borderRadius: 9, padding: '9px 10px' },
+  previewStatL: { fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' },
+  previewStatV: { fontFamily: 'Cormorant Garamond, serif', fontSize: 15, fontWeight: 700, marginTop: 2 },
+  previewSplit: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 },
+  previewPanel: { background: '#fff', border: `1px solid ${C.line}`, borderRadius: 10, padding: '11px 12px' },
+  previewScore: { fontFamily: 'Cormorant Garamond, serif', fontSize: 30, fontWeight: 700, color: '#16A34A', lineHeight: 1, margin: '2px 0 4px' },
+  previewBarMeta: { display: 'flex', justifyContent: 'space-between', fontSize: 9, color: C.body, marginBottom: 3 },
+  previewTrack: { height: 5, background: '#EEF1F5', borderRadius: 3, overflow: 'hidden' },
+  previewLegend: { display: 'flex', flexWrap: 'wrap', gap: '4px 10px', justifyContent: 'center', marginTop: 4 },
+  previewLegendItem: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 8.5, color: C.body },
 };

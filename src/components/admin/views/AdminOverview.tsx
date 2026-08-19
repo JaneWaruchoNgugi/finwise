@@ -2,11 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import type { UserProfile, SubscriptionTier } from '../../../types';
-
-const TIERS: SubscriptionTier[] = ['free', 'silver', 'gold', 'platinum'];
-const TIER_COLOR: Record<SubscriptionTier, string> = {
-  free: '#9BAAC4', silver: '#C0C0C0', gold: '#C9A84C', platinum: '#A78BFA',
-};
+import { TIER_COLOR, TIER_LABEL, ACTIVE_TIERS, LEGACY_TIERS, GOLD_COMING_SOON } from '../../../lib/tiers';
 
 interface PaymentRow {
   amount?: number;
@@ -42,7 +38,11 @@ export const AdminOverview: React.FC = () => {
     const paidUsers = users.filter(u => u.tier !== 'free').length;
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
     return {
-      tierCounts: TIERS.map(t => ({ tier: t, count: users.filter(u => u.tier === t).length })),
+      tierCounts: [
+        ...ACTIVE_TIERS,
+        // Legacy tiers only appear when they still have users on them.
+        ...LEGACY_TIERS.filter(t => users.some(u => u.tier === t)),
+      ].map(t => ({ tier: t, count: users.filter(u => u.tier === t).length, legacy: LEGACY_TIERS.includes(t) })),
       revenue: paidPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0),
       payments: payments.length,
       pendingPayments: payments.filter(p => p.status === 'pending').length,
@@ -74,10 +74,14 @@ export const AdminOverview: React.FC = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) minmax(260px, 1fr)', gap: 16 }}>
         <section style={panelStyle}>
           <div style={panelTitle}>Tier Distribution</div>
-          {stats.tierCounts.map(({ tier, count }) => (
-            <div key={tier} style={{ marginBottom: 10 }}>
+          {stats.tierCounts.map(({ tier, count, legacy }) => (
+            <div key={tier} style={{ marginBottom: 10, opacity: legacy ? 0.6 : 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span style={{ color: TIER_COLOR[tier], fontWeight: 600, textTransform: 'capitalize' }}>{tier}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: TIER_COLOR[tier], fontWeight: 600 }}>{TIER_LABEL[tier]}</span>
+                  {tier === 'gold' && GOLD_COMING_SOON && <span style={comingSoonTag}>coming soon</span>}
+                  {legacy && <span style={legacyTag}>legacy</span>}
+                </span>
                 <span style={{ color: 'var(--text-2)' }}>{users.length ? Math.round((count / users.length) * 100) : 0}%</span>
               </div>
               <div style={{ height: 6, background: 'var(--bg-surface)', borderRadius: 4 }}>
@@ -123,3 +127,5 @@ const StatusLine: React.FC<{ label: string; count: number; total: number; color:
 const heading: React.CSSProperties = { fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 700, color: 'var(--text-1)', margin: 0 };
 const panelStyle: React.CSSProperties = { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 18 };
 const panelTitle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text-2)', marginBottom: 14 };
+const comingSoonTag: React.CSSProperties = { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--gold)', border: '1px solid var(--border-acc)', borderRadius: 4, padding: '1px 5px' };
+const legacyTag: React.CSSProperties = { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-3)', border: '1px solid var(--border-s)', borderRadius: 4, padding: '1px 5px' };

@@ -1,23 +1,27 @@
 import type { AssetCategory, LiabilityCategory, AssetCategoryMeta, LiabilityCategoryMeta, NetWorthItem } from '../types';
+import {
+  Banknote, TrendingUp, Building2, Car, Bitcoin, Palmtree, Briefcase, Shapes,
+  Landmark, CreditCard, GraduationCap, FileText,
+} from 'lucide-react';
 
 export const ASSET_META: Record<AssetCategory, AssetCategoryMeta> = {
-  cash:        { label: 'Cash & Savings',    icon: '💵', color: '#3DD68C' },
-  investments: { label: 'Investments',       icon: '📈', color: '#60A5FA' },
-  property:    { label: 'Property',          icon: '🏘️', color: '#FB923C' },
-  vehicle:     { label: 'Vehicle',           icon: '🚗', color: '#7B82FF' },
-  crypto:      { label: 'Crypto',            icon: '₿',  color: '#F59E0B' },
-  pension:     { label: 'Pension / NSSF',    icon: '🌿', color: '#34D399' },
-  business:    { label: 'Business Value',    icon: '💼', color: '#C9A84C' },
-  other:       { label: 'Other Assets',      icon: '🧩', color: '#94A3B8' },
+  cash:        { label: 'Cash & Savings',    icon: Banknote, color: '#3DD68C' },
+  investments: { label: 'Investments',       icon: TrendingUp, color: '#60A5FA' },
+  property:    { label: 'Property',          icon: Building2, color: '#FB923C' },
+  vehicle:     { label: 'Vehicle',           icon: Car, color: '#7B82FF' },
+  crypto:      { label: 'Crypto',            icon: Bitcoin, color: '#F59E0B' },
+  pension:     { label: 'Pension / NSSF',    icon: Palmtree, color: '#34D399' },
+  business:    { label: 'Business Value',    icon: Briefcase, color: '#C9A84C' },
+  other:       { label: 'Other Assets',      icon: Shapes, color: '#94A3B8' },
 };
 
 export const LIABILITY_META: Record<LiabilityCategory, LiabilityCategoryMeta> = {
-  mortgage:     { label: 'Mortgage',       icon: '🏦', color: '#F87171' },
-  carLoan:      { label: 'Car Loan',       icon: '🚗', color: '#FB923C' },
-  personalLoan: { label: 'Personal Loan',  icon: '💳', color: '#FBBF24' },
-  creditCard:   { label: 'Credit Card',    icon: '💳', color: '#E879F9' },
-  studentLoan:  { label: 'Student Loan',   icon: '📚', color: '#A78BFA' },
-  other:        { label: 'Other Debts',    icon: '📋', color: '#94A3B8' },
+  mortgage:     { label: 'Mortgage',       icon: Landmark, color: '#F87171' },
+  carLoan:      { label: 'Car Loan',       icon: Car, color: '#FB923C' },
+  personalLoan: { label: 'Personal Loan',  icon: CreditCard, color: '#FBBF24' },
+  creditCard:   { label: 'Credit Card',    icon: CreditCard, color: '#E879F9' },
+  studentLoan:  { label: 'Student Loan',   icon: GraduationCap, color: '#A78BFA' },
+  other:        { label: 'Other Debts',    icon: FileText, color: '#94A3B8' },
 };
 
 export const calculateNetWorth = (items: NetWorthItem[]) => {

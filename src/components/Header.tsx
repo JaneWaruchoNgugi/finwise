@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-    BarChart3, Bell, Bot, CreditCard, Goal, Home,
-    Info, Landmark, LineChart, PiggyBank, Shield, UserCircle, WalletCards
+    BarChart3, Bell, Bot, ChevronDown, ChevronLeft, ChevronRight, CreditCard,
+    Download, Home, Info, Landmark, LineChart, Lock, LogOut, Moon, PiggyBank,
+    Shield, Sun, TrendingUp, UserCircle, WalletCards, X
 } from 'lucide-react';
 import type { AppView } from '../types';
 import type { SubscriptionTier } from '../types';
 import {type Theme, ThemeContext, useTheme} from "../hooks/NavItems.ts";
-import { PLAN_LOCKED_VIEWS } from './LandingPage';
+import { PLAN_LOCKED_VIEWS } from '../lib/planAccess';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [theme, setTheme] = useState<Theme>(() => {
@@ -52,7 +53,7 @@ const NAV_ITEMS: NavItem[] = [
     { id: 'dashboard',   label: 'Overview',   icon: Info,         group: 'main' },
   { id: 'expenses',    label: 'Expenses',   icon: WalletCards,  group: 'main' },
   { id: 'investments', label: 'Invest',     icon: LineChart,    group: 'main' },
-  { id: 'goals',       label: 'Goals',      icon: Goal,         group: 'plan' },
+  { id: 'goals',       label: 'Investments', icon: TrendingUp,  group: 'plan' },
   { id: 'bills',       label: 'Bills',      icon: CreditCard,   group: 'plan' },
   { id: 'networth',    label: 'Net Worth',  icon: Landmark,     group: 'plan' },
   { id: 'emergency',   label: 'Emergency',  icon: Shield,       group: 'plan' },
@@ -241,11 +242,11 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="fw-sidebar-hd fw-sidebar-hd-root">
             <button className="fw-logo-btn" onClick={() => go('dashboard')} aria-label="Go to dashboard">
               <div className="fw-logo-mark">
-                <span className="fw-logo-sym">Ƒ</span>
+                <span className="fw-logo-sym">P</span>
               </div>
               <div className="fw-reveal fw-logo-text">
-                <div className="fw-logo-name">FinWise</div>
-                <div className="fw-logo-tag">YOUR MONEY, MASTERED</div>
+                <div className="fw-logo-name">PesaFlow</div>
+                <div className="fw-logo-tag">TRACK YOUR MONEY. GROW YOUR WEALTH. SLEEP BETTER.</div>
               </div>
             </button>
             <button
@@ -256,7 +257,9 @@ export const Header: React.FC<HeaderProps> = ({
                 }}
                 aria-label={mobileSide ? 'Close sidebar' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              <span className="fw-collapse-icon">{mobileSide ? '✕' : (collapsed ? '›' : '‹')}</span>
+              <span className="fw-collapse-icon" style={{ display: 'inline-flex' }}>
+                {mobileSide ? <X size={16} strokeWidth={2.4} /> : (collapsed ? <ChevronRight size={16} strokeWidth={2.4} /> : <ChevronLeft size={16} strokeWidth={2.4} />)}
+              </span>
             </button>
           </div>
 
@@ -326,7 +329,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             {/* Theme toggle */}
             <button className="fw-theme-btn" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
-              <span className="fw-theme-emoji" aria-hidden="true">{theme === 'dark' ? '🌙' : '☀️'}</span>
+              <span className="fw-theme-emoji" style={{ display: 'inline-flex' }} aria-hidden="true">{theme === 'dark' ? <Moon size={15} strokeWidth={2.2} /> : <Sun size={15} strokeWidth={2.2} />}</span>
               <span className="fw-reveal fw-theme-label">{theme === 'dark' ? 'Dark mode' : 'Light mode'}</span>
               <div className={`fw-reveal fw-track${theme === 'light' ? ' fw-track--on' : ''}`} aria-hidden="true">
                 <div className="fw-thumb" />
@@ -350,7 +353,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Page title */}
             <span className="fw-page-title">
-            {NAV_ITEMS.find(n => n.id === activeView)?.label ?? 'FinWise'}
+            {NAV_ITEMS.find(n => n.id === activeView)?.label ?? 'PesaFlow'}
           </span>
 
             <div style={{ flex: 1 }} />
@@ -362,7 +365,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
                 aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <Sun size={16} strokeWidth={2.2} /> : <Moon size={16} strokeWidth={2.2} />}
             </button>
 
             {/* Subscription notice */}
@@ -397,7 +400,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {userName ? userName[0].toUpperCase() : 'U'}
                 </div>
                 {userName && <span className="fw-user-name">{userName}</span>}
-                <span className="fw-user-caret" aria-hidden="true">▾</span>
+                <span className="fw-user-caret" style={{ display: 'inline-flex' }} aria-hidden="true"><ChevronDown size={14} strokeWidth={2.4} /></span>
               </button>
 
               {userMenu && (
@@ -405,15 +408,15 @@ export const Header: React.FC<HeaderProps> = ({
                     {userName && (
                         <div className="fw-dropdown-head" role="presentation">
                           <div className="fw-dropdown-name">{userName}</div>
-                          <div className="fw-dropdown-sub">FinWise Profile</div>
+                          <div className="fw-dropdown-sub">PesaFlow Profile</div>
                         </div>
                     )}
-                    <button className="fw-dropdown-item" onClick={onExportExpenses} role="menuitem">⬇ Export Expenses</button>
-                    <button className="fw-dropdown-item" onClick={onExportInvestments} role="menuitem">⬇ Export Investments</button>
-                    <button className="fw-dropdown-item" onClick={onExportNetWorth} role="menuitem">⬇ Export Net Worth</button>
+                    <button className="fw-dropdown-item" onClick={onExportExpenses} role="menuitem"><Download size={15} strokeWidth={2.2} /> Export Expenses</button>
+                    <button className="fw-dropdown-item" onClick={onExportInvestments} role="menuitem"><Download size={15} strokeWidth={2.2} /> Export Investments</button>
+                    <button className="fw-dropdown-item" onClick={onExportNetWorth} role="menuitem"><Download size={15} strokeWidth={2.2} /> Export Net Worth</button>
                     <div className="fw-dropdown-sep" role="separator" />
-                    <button className="fw-dropdown-item fw-dropdown-item--danger" onClick={onLock} role="menuitem">🔒 Lock App</button>
-                    <button className="fw-dropdown-item fw-dropdown-item--danger" onClick={() => onLogout?.()} role="menuitem">🚪 Log Out</button>
+                    <button className="fw-dropdown-item fw-dropdown-item--danger" onClick={onLock} role="menuitem"><Lock size={15} strokeWidth={2.2} /> Lock App</button>
+                    <button className="fw-dropdown-item fw-dropdown-item--danger" onClick={() => onLogout?.()} role="menuitem"><LogOut size={15} strokeWidth={2.2} /> Log Out</button>
                   </div>
               )}
             </div>
@@ -436,7 +439,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => go(id)}
               >
                 <div className="fw-tab-bubble"><Icon size={18} strokeWidth={2.2} /></div>
-                <span>{id === 'chat' ? 'AI Coach' : id === 'investments' ? 'Invest' : item.label}</span>
+                <span>{id === 'chat' ? 'AI Coach' : (id === 'investments' || id === 'goals') ? 'Invest' : item.label}</span>
               </button>
             );
           })}

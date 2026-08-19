@@ -1,9 +1,12 @@
 import { useState, useCallback } from 'react';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { signInWithCustomToken, signOut } from 'firebase/auth';
+import { httpsCallable, type FunctionsError } from 'firebase/functions';
+import { db, auth, functions } from '../lib/firebase';
 import type { AdminUser, AdminRole } from '../types';
 
 const ADMIN_SESSION = 'finwise_admin_session';
+const adminSignInFn = httpsCallable(functions, 'adminSignIn');
 
 const hashPassword = (pw: string): string => {
   let h = 5381;
@@ -23,6 +26,21 @@ export const useAdminAuth = () => {
     setLoading(true);
     setError(null);
     try {
+      // Preferred: server-verified admin sign-in → Firebase Auth session with an
+      // `admin` claim (needed once admin collections are rules-gated).
+      try {
+        const res = await adminSignInFn({ email, password });
+        const { token, admin: adminData } = res.data as { token: string; admin: AdminUser };
+        await signInWithCustomToken(auth, token);
+        sessionStorage.setItem(ADMIN_SESSION, JSON.stringify(adminData));
+        setAdmin(adminData);
+        return true;
+      } catch (fnErr) {
+        const code = (fnErr as FunctionsError)?.code;
+        if (code === 'functions/permission-denied') { setError('Invalid credentials.'); return false; }
+        console.warn('adminSignIn unavailable, using fallback:', code || fnErr);
+      }
+
       const snap = await getDocs(collection(db, 'admins'));
       const match = snap.docs.find(d => {
         const data = d.data() as AdminUser;
@@ -44,6 +62,7 @@ export const useAdminAuth = () => {
   const logout = useCallback(() => {
     sessionStorage.removeItem(ADMIN_SESSION);
     setAdmin(null);
+    signOut(auth).catch(() => { /* ignore */ });
   }, []);
 
   const createAdmin = useCallback(async (email: string, password: string, role: AdminRole) => {

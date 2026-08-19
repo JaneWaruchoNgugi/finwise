@@ -1,4 +1,5 @@
 import React from 'react';
+import { TriangleAlert } from 'lucide-react';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -29,7 +30,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return (
       <div style={styles.page}>
         <div style={styles.card}>
-          <div style={styles.icon}>!</div>
+          <div style={styles.icon}><TriangleAlert size={22} strokeWidth={2.4} /></div>
           <h1 style={styles.title}>Something went wrong</h1>
           <p style={styles.text}>The app hit an unexpected error. Refresh the page and try again.</p>
           {this.state.message && <pre style={styles.detail}>{this.state.message}</pre>}

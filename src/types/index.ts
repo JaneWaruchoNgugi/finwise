@@ -1,9 +1,14 @@
+import type { LucideIcon } from 'lucide-react';
+
 export type ExpenseCategory =
     | 'housing' | 'food' | 'transport' | 'utilities' | 'medical'
     | 'education' | 'entertainment' | 'diningOut' | 'shopping'
     | 'subscriptions' | 'impulse' | 'other';
 
 export type ExpenseType = 'necessary' | 'unnecessary';
+
+/** How often an expense recurs. 'daily' rolls up into the monthly total by working days. */
+export type ExpenseFrequency = 'oneoff' | 'daily' | 'monthly';
 
 export interface Expense {
   id: string;
@@ -13,6 +18,8 @@ export interface Expense {
   type: ExpenseType;
   date: string;
   isRecurring: boolean;
+  /** Defaults to 'oneoff' when absent (backward compatible with older entries). */
+  frequency?: ExpenseFrequency;
 }
 
 export interface IncomeStream {
@@ -21,17 +28,25 @@ export interface IncomeStream {
   amount: number;
 }
 
+export type IncomeMode = 'single' | 'streams' | 'daily';
+
 export interface FinancialProfile {
   monthlyIncome: number;
   currency: string;
   incomeStreams?: IncomeStream[];
+  /** Which income entry method the user last used (drives the Advisor tab on reload). */
+  incomeMode?: IncomeMode;
+  /** Raw daily take-home entered by daily earners (before monthly conversion). */
+  dailyAmount?: number;
+  /** Days worked per week for daily earners (1–7); monthly ≈ dailyAmount × daysPerWeek × 4.33. */
+  daysPerWeek?: number;
 }
 
 export interface CategoryMeta {
   label: string;
   type: ExpenseType;
   color: string;
-  icon: string;
+  icon: LucideIcon;
 }
 
 export interface SpendingInsight {
@@ -84,7 +99,7 @@ export interface Investment {
 export interface InvestmentCategoryMeta {
   label: string;
   color: string;
-  icon: string;
+  icon: LucideIcon;
   avgReturn: number;
   riskLevel: 'low' | 'medium' | 'high';
   description: string;
@@ -102,7 +117,14 @@ export interface InvestmentSummary {
 
 export type GoalCategory =
     | 'emergency' | 'vacation' | 'education' | 'property'
-    | 'car' | 'business' | 'retirement' | 'wedding' | 'other';
+    | 'car' | 'business' | 'retirement' | 'wedding'
+    | 'mmf' | 'sacco' | 'chama' | 'insurance' | 'other';
+
+/** For SACCO savings: whether the balance is held as dividend-earning deposits or share capital. */
+export type SaccoHolding = 'dividends' | 'shares';
+
+/** How often chama members contribute (and the pot rotates). */
+export type ChamaFrequency = 'daily' | 'weekly' | 'monthly';
 
 export interface Goal {
   id: string;
@@ -115,11 +137,27 @@ export interface Goal {
   notes: string;
   createdAt: string;
   completed: boolean;
+  /** Provider/institution for savings vehicles — SACCO name, chama name, MMF provider, or insurer. */
+  institution?: string;
+  /** For SACCO goals: dividends (deposits) vs shares (share capital). */
+  saccoHolding?: SaccoHolding;
+  /** Annual interest / dividend rate (% p.a.) for MMF / SACCO savings — used to project growth. */
+  interestRate?: number;
+  /** Whether the savings are locked in (fixed term) rather than freely withdrawable. */
+  lockedIn?: boolean;
+  /** Chama: total members in the group. */
+  chamaMembers?: number;
+  /** Chama: this member's payout position in the rotation (1 = receives first). */
+  chamaPosition?: number;
+  /** Chama: how often each member contributes / the pot rotates. */
+  chamaFrequency?: ChamaFrequency;
+  /** Chama: amount each member contributes per period. Pot = chamaContribution × chamaMembers. */
+  chamaContribution?: number;
 }
 
 export interface GoalCategoryMeta {
   label: string;
-  icon: string;
+  icon: LucideIcon;
   color: string;
   description: string;
 }
@@ -130,7 +168,7 @@ export type BillCategory =
     | 'rent' | 'electricity' | 'water' | 'internet' | 'phone'
     | 'insurance' | 'subscription' | 'loan' | 'tv' | 'other';
 
-export type BillFrequency = 'weekly' | 'monthly' | 'quarterly' | 'annually';
+export type BillFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annually';
 export type BillStatus = 'upcoming' | 'paid' | 'overdue';
 
 export interface Bill {
@@ -148,7 +186,7 @@ export interface Bill {
 
 export interface BillCategoryMeta {
   label: string;
-  icon: string;
+  icon: LucideIcon;
   color: string;
 }
 
@@ -173,13 +211,13 @@ export interface NetWorthItem {
 
 export interface AssetCategoryMeta {
   label: string;
-  icon: string;
+  icon: LucideIcon;
   color: string;
 }
 
 export interface LiabilityCategoryMeta {
   label: string;
-  icon: string;
+  icon: LucideIcon;
   color: string;
 }
 
@@ -188,10 +226,11 @@ export interface LiabilityCategoryMeta {
 export type SubscriptionTier = 'free' | 'silver' | 'gold' | 'platinum';
 
 export interface UserProfile {
-  uid?: string;
+  uid: string;
   name: string;
+  email: string;
   phone: string;
-  pin: string;
+  authProvider: 'password' | 'google';
   createdAt: string;
   tier: SubscriptionTier;
   blacklisted?: boolean;

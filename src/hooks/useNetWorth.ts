@@ -1,8 +1,8 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { NetWorthItem } from '../types';
 import { generateId } from '../utils/expenses';
 import { calculateNetWorth } from "./netWorth.ts";
-import { syncCollection, deleteFromCollection } from '../lib/sync';
+import { syncCollection, deleteFromCollection, fetchCollection } from '../lib/sync';
 
 const STORAGE_KEY = 'finwise_networth';
 const load = (): NetWorthItem[] => {
@@ -11,6 +11,15 @@ const load = (): NetWorthItem[] => {
 
 export const useNetWorth = () => {
   const [items, setItems] = useState<NetWorthItem[]>(load);
+
+  // Hydrate from Firestore on mount so net-worth items load across devices.
+  useEffect(() => {
+    let alive = true;
+    fetchCollection<NetWorthItem>('networth').then(remote => {
+      if (alive && remote) { setItems(remote); localStorage.setItem(STORAGE_KEY, JSON.stringify(remote)); }
+    });
+    return () => { alive = false; };
+  }, []);
 
   const persist = (updated: NetWorthItem[]) => {
     setItems(updated);

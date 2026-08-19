@@ -1,7 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { EmergencyFundData } from '../types';
 import { generateId } from '../utils/expenses';
-import { syncDoc } from '../lib/sync';
+import { syncDoc, fetchDoc } from '../lib/sync';
 
 const STORAGE_KEY = 'finwise_emergency_fund';
 const DEFAULT: EmergencyFundData = {
@@ -14,6 +14,15 @@ const load = (): EmergencyFundData => {
 
 export const useEmergencyFund = (monthlyExpenses: number) => {
   const [data, setData] = useState<EmergencyFundData>(load);
+
+  // Hydrate the emergency fund from Firestore on mount.
+  useEffect(() => {
+    let alive = true;
+    fetchDoc<EmergencyFundData>('emergencyFund').then(remote => {
+      if (alive && remote) { setData(remote); localStorage.setItem(STORAGE_KEY, JSON.stringify(remote)); }
+    });
+    return () => { alive = false; };
+  }, []);
 
   const save = (updated: EmergencyFundData) => {
     setData(updated);
