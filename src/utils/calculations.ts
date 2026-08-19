@@ -12,17 +12,20 @@ export const calculateMonthlyBreakdown = (
   income: number,
   billsTotal = 0,
   goalsTotal = 0,
+  dailyMultiplier = 30,
 ): MonthlyBreakdown => {
   const byCategory = {} as Record<string, number>;
   let necessaryTotal = 0;
   let unnecessaryTotal = 0;
 
   for (const exp of expenses) {
-    byCategory[exp.category] = (byCategory[exp.category] || 0) + exp.amount;
+    // A 'daily' expense is entered once but recurs each day, so scale it to a monthly figure.
+    const monthlyAmount = exp.frequency === 'daily' ? exp.amount * dailyMultiplier : exp.amount;
+    byCategory[exp.category] = (byCategory[exp.category] || 0) + monthlyAmount;
     if (CATEGORY_META[exp.category].type === 'necessary') {
-      necessaryTotal += exp.amount;
+      necessaryTotal += monthlyAmount;
     } else {
-      unnecessaryTotal += exp.amount;
+      unnecessaryTotal += monthlyAmount;
     }
   }
 

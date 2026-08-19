@@ -1,10 +1,14 @@
 import type{ InvestmentCategory, InvestmentCategoryMeta, Investment, InvestmentSummary } from '../types';
+import {
+  PiggyBank, LineChart, TrendingUp, Landmark, Building2, Bitcoin,
+  Palmtree, Wallet, Lock, Shapes,
+} from 'lucide-react';
 
 export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta> = {
   sacco: {
     label: 'SACCO',
     color: '#3DD68C',
-    icon: '🏦',
+    icon: PiggyBank,
     avgReturn: 12,
     riskLevel: 'low',
     description: 'Savings & Credit Co-operative — dividends + loan access',
@@ -12,7 +16,7 @@ export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta>
   mmf: {
     label: 'Money Market Fund',
     color: '#60A5FA',
-    icon: '💹',
+    icon: LineChart,
     avgReturn: 11,
     riskLevel: 'low',
     description: 'CIC, Cytonn, Zimele — liquid, stable daily interest',
@@ -20,7 +24,7 @@ export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta>
   stocks: {
     label: 'NSE Stocks',
     color: '#A78BFA',
-    icon: '📈',
+    icon: TrendingUp,
     avgReturn: 15,
     riskLevel: 'high',
     description: 'Nairobi Securities Exchange listed equities',
@@ -28,7 +32,7 @@ export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta>
   bonds: {
     label: 'T-Bills / Bonds',
     color: '#C9A84C',
-    icon: '🏛️',
+    icon: Landmark,
     avgReturn: 14,
     riskLevel: 'low',
     description: 'Government-backed treasury bills and bonds',
@@ -36,7 +40,7 @@ export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta>
   realEstate: {
     label: 'Real Estate / REITs',
     color: '#FB923C',
-    icon: '🏘️',
+    icon: Building2,
     avgReturn: 13,
     riskLevel: 'medium',
     description: 'Property or REIT units (ILAM, Acorn)',
@@ -44,7 +48,7 @@ export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta>
   crypto: {
     label: 'Crypto',
     color: '#F59E0B',
-    icon: '₿',
+    icon: Bitcoin,
     avgReturn: 20,
     riskLevel: 'high',
     description: 'Bitcoin, ETH — high reward, very high risk',
@@ -52,7 +56,7 @@ export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta>
   pension: {
     label: 'Pension / NSSF',
     color: '#34D399',
-    icon: '🌿',
+    icon: Palmtree,
     avgReturn: 10,
     riskLevel: 'low',
     description: 'Retirement savings — NSSF voluntary top-ups',
@@ -60,7 +64,7 @@ export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta>
   savingsAccount: {
     label: 'Savings Account',
     color: '#54C5D0',
-    icon: '💳',
+    icon: Wallet,
     avgReturn: 6,
     riskLevel: 'low',
     description: 'Bank savings account — low return, fully liquid',
@@ -68,7 +72,7 @@ export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta>
   fixedDeposit: {
     label: 'Fixed Deposit',
     color: '#7B82FF',
-    icon: '🔒',
+    icon: Lock,
     avgReturn: 9,
     riskLevel: 'low',
     description: 'Locked bank deposits for fixed terms',
@@ -76,7 +80,7 @@ export const INVESTMENT_META: Record<InvestmentCategory, InvestmentCategoryMeta>
   other: {
     label: 'Other',
     color: '#94A3B8',
-    icon: '🧩',
+    icon: Shapes,
     avgReturn: 8,
     riskLevel: 'medium',
     description: 'Other investment vehicles',

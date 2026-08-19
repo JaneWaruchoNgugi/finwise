@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Wallet, BarChart3, TrendingUp, Scale, Siren, AlertTriangle, Send, MoreHorizontal } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { addDoc, collection, query, orderBy, limit, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, functions } from '../lib/firebase';
@@ -72,7 +73,7 @@ export const AIChat: React.FC<AIChatProps> = ({
   const welcomeMsg: ChatMessage = {
     id: 'welcome',
     role: 'assistant',
-    content: `Habari${userName ? `, ${userName}` : ''}! 👋 I'm your FinWise financial advisor. I answer money questions using your FinWise data: spending, bills, goals, net worth, emergency fund, investments, and habits.\n\nAsk me about your budget, savings plan, bills, debt, investments, or emergency fund.`,
+    content: `Habari${userName ? `, ${userName}` : ''}! I'm your PesaFlow financial advisor. I answer money questions using your PesaFlow data: spending, bills, goals, net worth, emergency fund, investments, and habits.\n\nAsk me about your budget, savings plan, bills, debt, investments, or emergency fund.`,
     timestamp: new Date().toISOString(),
   };
 
@@ -158,7 +159,7 @@ export const AIChat: React.FC<AIChatProps> = ({
         role: 'assistant',
         content: `${reply}
 
-Claude is unavailable right now, so I used the built-in FinWise advisor instead.`,
+Claude is unavailable right now, so I used the built-in PesaFlow advisor instead.`,
         timestamp: new Date().toISOString(),
       };
 
@@ -200,23 +201,23 @@ Claude is unavailable right now, so I used the built-in FinWise advisor instead.
 
       {/* Header */}
       <div style={S.chatHeader}>
-        <div style={S.aiAvatar}>Ƒ</div>
+        <div style={S.aiAvatar}>P</div>
         <div>
-          <div style={S.aiName}>FinWise AI Advisor</div>
+          <div style={S.aiName}>PesaFlow AI Advisor</div>
           <div style={S.aiStatus}>
-            <span style={S.statusDot} />Claude financial agent · Uses your FinWise data
+            <span style={S.statusDot} />Claude financial agent · Uses your PesaFlow data
           </div>
         </div>
         <div style={S.contextBadges}>
-          <span style={S.badge}>💰 {formatCurrency(profile.monthlyIncome, profile.currency)}/mo</span>
-          <span style={S.badge}>📊 {formatCurrency(breakdown.totalExpenses, profile.currency)} spent</span>
-          <span style={S.badge}>📈 {formatCurrency(investmentSummary.totalInvested, profile.currency)} invested</span>
-          <span style={S.badge}>⚖ {formatCurrency(netWorthSummary.netWorth, profile.currency)} NW</span>
+          <span style={S.badge}><Wallet size={12} strokeWidth={2.2} /> {formatCurrency(profile.monthlyIncome, profile.currency)}/mo</span>
+          <span style={S.badge}><BarChart3 size={12} strokeWidth={2.2} /> {formatCurrency(breakdown.totalExpenses, profile.currency)} spent</span>
+          <span style={S.badge}><TrendingUp size={12} strokeWidth={2.2} /> {formatCurrency(investmentSummary.totalInvested, profile.currency)} invested</span>
+          <span style={S.badge}><Scale size={12} strokeWidth={2.2} /> {formatCurrency(netWorthSummary.netWorth, profile.currency)} NW</span>
         </div>
         {onNavigateToAlerts && (
           <button onClick={onNavigateToAlerts}
-            style={{ padding: '7px 14px', background: 'var(--red-dim)', border: '1px solid var(--red-b)', borderRadius: 8, color: 'var(--red)', fontSize: 12, fontFamily: 'Karla, sans-serif', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            🚨 SOS
+            style={{ padding: '7px 14px', background: 'var(--red-dim)', border: '1px solid var(--red-b)', borderRadius: 8, color: 'var(--red)', fontSize: 12, fontFamily: 'Karla, sans-serif', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <Siren size={14} strokeWidth={2.4} /> SOS
           </button>
         )}
       </div>
@@ -231,7 +232,7 @@ Claude is unavailable right now, so I used the built-in FinWise advisor instead.
 
         {messages.map((msg) => (
           <div key={msg.id} style={{ ...S.msgRow, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            {msg.role === 'assistant' && <div style={S.aiBubbleAvatar}>Ƒ</div>}
+            {msg.role === 'assistant' && <div style={S.aiBubbleAvatar}>P</div>}
             <div style={{ ...S.bubble, ...(msg.role === 'user' ? S.userBubble : S.aiBubble) }}>
               <div style={S.bubbleContent}>{renderContent(msg.content)}</div>
               <div style={S.bubbleTime}>{formatTime(msg.timestamp)}</div>
@@ -241,7 +242,7 @@ Claude is unavailable right now, so I used the built-in FinWise advisor instead.
 
         {loading && (
           <div style={{ ...S.msgRow, justifyContent: 'flex-start' }}>
-            <div style={S.aiBubbleAvatar}>Ƒ</div>
+            <div style={S.aiBubbleAvatar}>P</div>
             <div style={{ ...S.bubble, ...S.aiBubble }}>
               <div style={S.typingDots}>
                 {[0, 0.2, 0.4].map((d, i) => (
@@ -252,7 +253,7 @@ Claude is unavailable right now, so I used the built-in FinWise advisor instead.
           </div>
         )}
 
-        {error && <div style={S.errorMsg}>⚠ {error}</div>}
+        {error && <div style={S.errorMsg}><AlertTriangle size={14} strokeWidth={2.2} /> {error}</div>}
         <div ref={bottomRef} />
       </div>
 
@@ -284,7 +285,7 @@ Claude is unavailable right now, so I used the built-in FinWise advisor instead.
           onClick={() => sendMessage(input)}
           disabled={!input.trim() || loading || !historyLoaded}
         >
-          {loading ? '···' : '→'}
+          {loading ? <MoreHorizontal size={22} strokeWidth={2.4} /> : <Send size={20} strokeWidth={2.2} />}
         </button>
       </div>
       <div style={S.inputHint}>Enter to send · Shift+Enter for new line</div>
@@ -310,7 +311,7 @@ const S: Record<string, React.CSSProperties> = {
   aiStatus: { fontSize: 11, color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 },
   statusDot: { width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 6px var(--green-dim)', display: 'inline-block' },
   contextBadges: { display: 'flex', gap: 7, flexWrap: 'wrap', marginLeft: 'auto' },
-  badge: { fontSize: 11, color: 'var(--text-3)', background: 'var(--bg-surface)', border: '1px solid var(--border)', padding: '3px 9px', borderRadius: 20 },
+  badge: { fontSize: 11, color: 'var(--text-3)', background: 'var(--bg-surface)', border: '1px solid var(--border)', padding: '3px 9px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 },
   messagesPane: { flex: 1, overflowY: 'auto', background: 'var(--bg-page)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 },
   msgRow: { display: 'flex', alignItems: 'flex-start', gap: 9 },
   aiBubbleAvatar: { width: 28, height: 28, borderRadius: 7, background: 'var(--gold-dim)', border: '1px solid var(--border-acc)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cormorant Garamond, serif', fontSize: 13, fontWeight: 700, color: 'var(--gold)', flexShrink: 0, marginTop: 2 },
@@ -323,7 +324,7 @@ const S: Record<string, React.CSSProperties> = {
   boldLine: { fontWeight: 600, color: 'var(--text-1)', marginTop: 4 },
   typingDots: { display: 'flex', gap: 5, padding: '3px 0', alignItems: 'center' },
   dot: { ...DOT_BASE },
-  errorMsg: { fontSize: 13, color: 'var(--red)', background: 'var(--red-dim)', border: '1px solid var(--red-b)', padding: '9px 13px', borderRadius: 8 },
+  errorMsg: { fontSize: 13, color: 'var(--red)', background: 'var(--red-dim)', border: '1px solid var(--red-b)', padding: '9px 13px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6 },
   quickPromptsWrap: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '13px 16px' },
   quickLabel: { fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 9 },
   quickPrompts: { display: 'flex', flexWrap: 'wrap', gap: 7 },

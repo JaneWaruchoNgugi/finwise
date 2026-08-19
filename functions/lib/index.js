@@ -11,7 +11,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminSignIn = exports.authWithPin = exports.sendNewsletter = exports.getSubscribers = exports.chatWithAdvisor = exports.confirmSubscriptionPayment = exports.getPaymentStatus = exports.stkCallback = exports.deposit = exports.initiateStkPush = void 0;
+exports.adminSignIn = exports.sendNewsletter = exports.getSubscribers = exports.chatWithAdvisor = exports.confirmSubscriptionPayment = exports.getPaymentStatus = exports.stkCallback = exports.deposit = exports.initiateStkPush = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -37,21 +37,7 @@ const buildTransport = () => nodemailer.createTransport({
     secure: Number(process.env.SMTP_PORT) === 465,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
 });
-// ── Custom-token auth (server-verified phone + PIN identity) ──────────────
-// Phone → Firestore doc id, MUST match the client's phoneToId (0-prefixed, no spaces)
-// so the minted token's uid lines up with existing users/{uid} documents.
-const authNormalizePhone = (phone) => {
-    const d = String(phone || '').replace(/[^\d+]/g, '');
-    if (/^0\d{9}$/.test(d))
-        return d;
-    if (/^254\d{9}$/.test(d))
-        return '0' + d.slice(3);
-    if (/^\+254\d{9}$/.test(d))
-        return '0' + d.slice(4);
-    return String(phone || '').replace(/\s+/g, '');
-};
-const phoneToUid = (phone) => authNormalizePhone(phone).replace(/\s+/g, '');
-// Legacy client hashes (djb2) — used only to verify + migrate old accounts.
+// Legacy client hashes (djb2) — used only to verify + migrate old admin accounts.
 const legacyHashPin = (pin) => {
     let h = 5381;
     for (let i = 0; i < pin.length; i++)
@@ -59,10 +45,8 @@ const legacyHashPin = (pin) => {
     return (h >>> 0).toString(36);
 };
 const legacyHashPassword = legacyHashPin;
-// Strong PIN hashing: salted SHA-256 (PINs are 4 digits; the real protection is the
-// locked-down DB — the hash is never client-readable under the tightened rules).
+// Salt generator (used for admin password upgrades).
 const genSalt = () => crypto.randomBytes(16).toString('hex');
-const strongHash = (secret, salt) => crypto.createHash('sha256').update(salt + ':' + secret).digest('hex');
 // Strong PASSWORD hashing (admins): scrypt — a slow, brute-force-resistant KDF
 // built into Node (no extra dependency), the right choice for real passwords.
 const scryptHashPw = (password, salt) => crypto.scryptSync(password, salt, 64).toString('hex');
@@ -194,7 +178,7 @@ async function initiateSubscriptionPayment(input) {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     await db.collection('users').doc(userId).set({
-        phone: userId,
+        phone,
         pendingTier: input.tier,
         subscriptionStatus: 'pending_payment',
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -611,58 +595,6 @@ exports.sendNewsletter = (0, https_1.onCall)({ cors: true, timeoutSeconds: 540 }
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     return { total: emails.length, sent, failed };
-});
-// ── User auth: verify phone + PIN, mint a Firebase custom token ───────────
-exports.authWithPin = (0, https_1.onCall)({ cors: true }, async (request) => {
-    const { mode, phone, pin, name } = request.data;
-    const normalized = authNormalizePhone(phone || '');
-    if (!/^0[17]\d{8}$/.test(normalized)) {
-        throw new https_1.HttpsError('invalid-argument', 'Enter a valid Kenyan phone number.');
-    }
-    if (!/^\d{4}$/.test(pin || '')) {
-        throw new https_1.HttpsError('invalid-argument', 'PIN must be exactly 4 digits.');
-    }
-    const uid = phoneToUid(normalized);
-    const ref = db.collection('users').doc(uid);
-    const snap = await ref.get();
-    if (mode === 'signup') {
-        if (snap.exists)
-            throw new https_1.HttpsError('already-exists', 'An account already exists for this phone number. Please log in.');
-        const salt = genSalt();
-        const profile = {
-            name: (name || '').trim(),
-            phone: normalized,
-            pinHash: strongHash(pin, salt),
-            pinSalt: salt,
-            tier: 'free',
-            subscriptionStatus: 'active',
-            createdAt: new Date().toISOString(),
-        };
-        await ref.set(profile);
-        const token = await admin.auth().createCustomToken(uid);
-        return { token, profile: Object.assign(Object.assign({}, profile), { uid }) };
-    }
-    // login
-    if (!snap.exists)
-        throw new https_1.HttpsError('not-found', 'No account found for this phone number.');
-    const data = snap.data();
-    let ok = false;
-    if (typeof data.pinSalt === 'string' && typeof data.pinHash === 'string') {
-        ok = data.pinHash === strongHash(pin, data.pinSalt);
-    }
-    else if (typeof data.pin === 'string') {
-        // Legacy account — verify old djb2 hash, then migrate to salted SHA-256.
-        if (data.pin === legacyHashPin(pin)) {
-            ok = true;
-            const salt = genSalt();
-            await ref.set({ pinHash: strongHash(pin, salt), pinSalt: salt }, { merge: true });
-        }
-    }
-    if (!ok)
-        throw new https_1.HttpsError('permission-denied', 'Wrong PIN.');
-    const token = await admin.auth().createCustomToken(uid);
-    const { pin: _p, pinHash: _h, pinSalt: _s } = data, safe = __rest(data, ["pin", "pinHash", "pinSalt"]);
-    return { token, profile: Object.assign(Object.assign({}, safe), { uid }) };
 });
 // ── Admin auth: verify admin email + password, mint an admin-claim token ──
 exports.adminSignIn = (0, https_1.onCall)({ cors: true }, async (request) => {

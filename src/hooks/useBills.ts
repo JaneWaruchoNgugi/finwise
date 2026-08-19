@@ -1,8 +1,8 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Bill, BillStatus } from '../types';
 import { generateId } from '../utils/expenses';
 import { getMonthlyTotal, getUpcomingBills, sortBillsByDueDate } from "./bills.ts";
-import { syncCollection, deleteFromCollection } from '../lib/sync';
+import { syncCollection, deleteFromCollection, fetchCollection } from '../lib/sync';
 
 const STORAGE_KEY = 'finwise_bills';
 const load = (): Bill[] => {
@@ -11,6 +11,15 @@ const load = (): Bill[] => {
 
 export const useBills = () => {
   const [bills, setBills] = useState<Bill[]>(load);
+
+  // Hydrate from Firestore on mount so bills load across devices, not just localStorage.
+  useEffect(() => {
+    let alive = true;
+    fetchCollection<Bill>('bills').then(remote => {
+      if (alive && remote) { setBills(remote); localStorage.setItem(STORAGE_KEY, JSON.stringify(remote)); }
+    });
+    return () => { alive = false; };
+  }, []);
 
   const persist = (updated: Bill[]) => {
     setBills(updated);

@@ -1,5 +1,5 @@
 import React, {type Dispatch, type SetStateAction, useState} from 'react';
-import { ArrowRight, Crown, Landmark, Lock, ReceiptText, Shield, Sparkles, Target, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, ChevronRight, Crown, Landmark, Lock, Pencil, ReceiptText, Shield, Sparkles, Target, Trophy, TrendingUp, Wallet } from 'lucide-react';
 import type {MonthlyBreakdown, SpendingInsight, FinancialProfile, Bill, Goal, Habit, AppView, SubscriptionTier} from '../types';
 import { formatCurrency, CATEGORY_META } from '../utils/expenses';
 import { HabitsTracker } from './HabitsTracker';
@@ -84,7 +84,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Setup banner */}
       {profile.monthlyIncome === 0 && (
         <div className="setup-banner">
-          <span style={{ fontSize: 20 }}>💰</span>
+          <Wallet size={20} strokeWidth={2.1} style={{ color: 'var(--gold)', flexShrink: 0 }} />
           <span className="setup-text" style={S.setupText}>Set your monthly income to unlock personalized insights</span>
           <button style={S.setupBtn} onClick={() => setEditingIncome(true)}>Set Income</button>
         </div>
@@ -108,7 +108,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div style={S.statValue}>
                 {profile.monthlyIncome > 0 ? formatCurrency(profile.monthlyIncome, profile.currency) : '—'}
               </div>
-              <button style={S.editBtn} onClick={() => { setIncomeInput(String(profile.monthlyIncome)); setEditingIncome(true); }}>✎</button>
+              <button style={S.editBtn} onClick={() => { setIncomeInput(String(profile.monthlyIncome)); setEditingIncome(true); }} aria-label="Edit income"><Pencil size={14} strokeWidth={2.1} /></button>
             </div>
           )}
           <div style={S.statSub}>per month</div>
@@ -155,7 +155,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div style={S.freeHookIcon}><Sparkles size={22} strokeWidth={2.2} /></div>
           <div style={S.freeHookBody}>
             <div style={S.freeHookKicker}>Your spending pattern is ready</div>
-            <div style={S.freeHookTitle}>FinWise found enough data to turn tracking into a plan.</div>
+            <div style={S.freeHookTitle}>PesaFlow found enough data to turn tracking into a plan.</div>
             <div style={S.freeHookText}>
               Unlock Silver to plan bills and goals, or Gold to see full AI insights, investment tracking, and emergency alerts.
               {projectedSavings > 0 && ` You may be able to redirect about ${formatCurrency(projectedSavings, profile.currency)} from lifestyle spending this month.`}
@@ -212,7 +212,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 return (
                   <div key={cat} style={S.categoryItem}>
                     <div style={S.catLeft}>
-                      <span style={S.catIcon}>{meta?.icon}</span>
+                      {(() => { const Icon = meta?.icon; return Icon ? <span style={S.catIcon}><Icon size={20} strokeWidth={2.1} style={{ color: meta?.color }} /></span> : null; })()}
                       <div>
                         <div style={S.catName}>{meta?.label}</div>
                         <div style={{ ...S.catType, color: meta?.type === 'unnecessary' ? 'var(--amber)' : 'var(--green)' }}>{meta?.type}</div>
@@ -242,9 +242,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             {formatCurrency(netWorthSummary.netWorth, profile.currency)}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: 11, color: 'var(--text-3)' }}>
-            <span style={{ color: 'var(--green)' }}>↑ {formatCurrency(netWorthSummary.totalAssets, profile.currency)}</span>
+            <span style={{ color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><ArrowUp size={12} strokeWidth={2.4} /> {formatCurrency(netWorthSummary.totalAssets, profile.currency)}</span>
             <span>·</span>
-            <span style={{ color: 'var(--red)' }}>↓ {formatCurrency(netWorthSummary.totalLiabilities, profile.currency)}</span>
+            <span style={{ color: 'var(--red)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><ArrowDown size={12} strokeWidth={2.4} /> {formatCurrency(netWorthSummary.totalLiabilities, profile.currency)}</span>
           </div>
         </button>
 
@@ -259,7 +259,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>
             {billsOverdue.length > 0
-              ? <span style={{ color: 'var(--red)' }}>⚠ {billsOverdue.length} overdue!</span>
+              ? <span style={{ color: 'var(--red)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={12} strokeWidth={2.4} /> {billsOverdue.length} overdue!</span>
               : `${billsDue.length} unpaid this month`}
           </div>
         </button>
@@ -296,8 +296,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {activeGoals.length > 0 && (
         <div style={S.previewCard}>
           <div style={{ ...S.cardTitle, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>🎯 Goals Progress</span>
-            {onNavigate && <button style={S.viewAllBtn} onClick={() => onNavigate('goals')}>View all →</button>}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Trophy size={18} strokeWidth={2.1} style={{ color: 'var(--gold)' }} /> Goals Progress</span>
+            {onNavigate && <button style={{ ...S.viewAllBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => onNavigate('goals')}>View all <ArrowRight size={12} /></button>}
           </div>
           {activeGoals.map((g) => {
             const gPct = g.targetAmount > 0 ? Math.min(100, Math.round((g.savedAmount / g.targetAmount) * 100)) : 0;
@@ -324,11 +324,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Warnings */}
       {warnings.length > 0 && (
         <div style={S.warningsCard}>
-          <div style={S.cardTitle}>⚠️ Spending Alerts</div>
+          <div style={{ ...S.cardTitle, display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={18} strokeWidth={2.1} style={{ color: 'var(--amber)' }} /> Spending Alerts</div>
           <div style={S.warningsList}>
             {warnings.map((w, i) => (
               <div key={i} style={S.warningItem}>
-                <span style={S.warningBullet}>›</span>
+                <span style={{ ...S.warningBullet, display: 'inline-flex', alignItems: 'center' }}><ChevronRight size={14} strokeWidth={2.6} /></span>
                 <span>{w}</span>
               </div>
             ))}

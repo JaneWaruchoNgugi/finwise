@@ -2,18 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // User data — readable/writable by anyone with the userId (no Firebase Auth used)
+    // User data — each signed-in user may only access their own tree.
     match /users/{userId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
 
       // Financial subcollections (expenses, investments, goals, bills, networth, chat)
       match /{subcollection}/{docId} {
-        allow read, write: if true;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
       // Named data docs (profile, habits, emergencyFund)
       match /data/{docId} {
-        allow read, write: if true;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
 
@@ -54,6 +54,14 @@ service cloud.firestore {
     // Business-level app configuration
     match /appConfig/{configId} {
       allow read, write: if true;
+    }
+
+    // Newsletter subscribers — anyone can subscribe (create their own email doc),
+    // but the list is NOT publicly readable. Admin/Cloud Functions read it to send updates.
+    match /subscribers/{subId} {
+      allow create: if request.resource.data.email is string
+                    && request.resource.data.email.size() < 200;
+      allow read, update, delete: if false; // Admin SDK / admin only
     }
   }
 }

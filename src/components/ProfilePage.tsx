@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
+import { db, auth } from '../lib/firebase';
 import type { UserProfile, SubscriptionTier, AppView } from '../types';
 
 interface ProfilePageProps {
@@ -13,12 +14,6 @@ const TIER_COLOR: Record<SubscriptionTier, string> = {
   free: '#9BAAC4', silver: '#C0C0C0', gold: '#C9A84C', platinum: '#A78BFA',
 };
 const TIER_PRICE: Record<SubscriptionTier, number> = { free: 0, silver: 299, gold: 599, platinum: 999 };
-
-const hashPin = (pin: string): string => {
-  let h = 5381;
-  for (let i = 0; i < pin.length; i++) h = (h * 33) ^ pin.charCodeAt(i);
-  return (h >>> 0).toString(36);
-};
 
 const renewalDate = (profile: UserProfile): string | null => {
   const start = profile.subscriptionStart ?? profile.createdAt;
@@ -57,25 +52,35 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ profile, uid, onNaviga
     setTimeout(() => setNameMsg(''), 3000);
   };
 
-  const handleResetPin = async () => {
+  // The 6-digit PIN is the Firebase password. Changing it reauthenticates with the
+  // current PIN, then calls updatePassword — no PIN is ever stored in Firestore.
+  const handleChangePin = async () => {
     setPinMsg('');
-    if (hashPin(currentPin) !== profile.pin) { setPinMsg('Current PIN is incorrect.'); return; }
-    if (newPin.length !== 4) { setPinMsg('New PIN must be 4 digits.'); return; }
+    if (newPin.length !== 6) { setPinMsg('New PIN must be 6 digits.'); return; }
     if (newPin !== confirmPin) { setPinMsg('PINs do not match.'); return; }
+    const user = auth.currentUser;
+    if (!user?.email) { setPinMsg('You must be signed in to change your PIN.'); return; }
     setSaving(true);
-    const hashed = hashPin(newPin);
-    await updateDoc(doc(db, 'users', uid), { pin: hashed });
-    const stored = JSON.parse(localStorage.getItem('finwise_auth_profile') || '{}');
-    localStorage.setItem('finwise_auth_profile', JSON.stringify({ ...stored, pin: hashed }));
-    setCurrentPin(''); setNewPin(''); setConfirmPin('');
-    setPinMsg('PIN updated successfully!');
-    setSaving(false);
-    setTimeout(() => setPinMsg(''), 3000);
+    try {
+      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPin));
+      await updatePassword(user, newPin);
+      setCurrentPin(''); setNewPin(''); setConfirmPin('');
+      setPinMsg('PIN updated successfully!');
+      setTimeout(() => setPinMsg(''), 3000);
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') setPinMsg('Current PIN is incorrect.');
+      else if (code === 'auth/too-many-requests') setPinMsg('Too many attempts. Please try again later.');
+      else setPinMsg('Could not update PIN. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const days = daysUntilRenewal(profile);
   const renewal = renewalDate(profile);
   const color = TIER_COLOR[profile.tier];
+  const isPasswordUser = profile.authProvider === 'password';
 
   return (
     <div className="animate-in" style={{ maxWidth: 560, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20, padding: '8px 0 40px' }}>
@@ -110,6 +115,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ profile, uid, onNaviga
           <label style={label}>Display Name</label>
           <input value={name} onChange={e => setName(e.target.value)} style={input} />
         </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+          <label style={label}>Email</label>
+          <input value={profile.email} disabled style={{ ...input, opacity: 0.5, cursor: 'not-allowed' }} />
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4 }}>
           <label style={label}>Phone Number</label>
           <input value={profile.phone} disabled style={{ ...input, opacity: 0.5, cursor: 'not-allowed' }} />
@@ -123,33 +132,35 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ profile, uid, onNaviga
         </button>
       </div>
 
-      {/* Reset PIN */}
+      {/* Change PIN — email/PIN accounts only (Google users have no PIN) */}
+      {isPasswordUser && (
       <div style={card}>
-        <div style={sectionTitle}>Reset PIN</div>
+        <div style={sectionTitle}>Change PIN</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={label}>Current PIN</label>
-            <input type="password" inputMode="numeric" maxLength={4} value={currentPin}
-              onChange={e => setCurrentPin(e.target.value.replace(/\D/g, ''))} style={input} placeholder="••••" />
+            <input type="password" inputMode="numeric" maxLength={6} value={currentPin}
+              onChange={e => setCurrentPin(e.target.value.replace(/\D/g, ''))} style={input} placeholder="••••••" />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={label}>New PIN</label>
-            <input type="password" inputMode="numeric" maxLength={4} value={newPin}
-              onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))} style={input} placeholder="••••" />
+            <input type="password" inputMode="numeric" maxLength={6} value={newPin}
+              onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))} style={input} placeholder="••••••" />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={label}>Confirm New PIN</label>
-            <input type="password" inputMode="numeric" maxLength={4} value={confirmPin}
-              onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ''))} style={input} placeholder="••••" />
+            <input type="password" inputMode="numeric" maxLength={6} value={confirmPin}
+              onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ''))} style={input} placeholder="••••••" />
           </div>
         </div>
         {pinMsg && (
           <div style={{ fontSize: 12, marginTop: 8, color: pinMsg.includes('success') ? 'var(--green)' : 'var(--red)' }}>{pinMsg}</div>
         )}
-        <button onClick={handleResetPin} disabled={saving || !currentPin || !newPin || !confirmPin} style={{ ...saveBtn, marginTop: 14 }}>
+        <button onClick={handleChangePin} disabled={saving || !currentPin || !newPin || !confirmPin} style={{ ...saveBtn, marginTop: 14 }}>
           Update PIN
         </button>
       </div>
+      )}
     </div>
   );
 };

@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { Check, X, Pencil, TrendingUp, TrendingDown, Plus } from 'lucide-react';
 import type { NetWorthItem, AssetCategory, LiabilityCategory } from '../types';
 import { ASSET_META, LIABILITY_META, calculateNetWorth } from '../hooks/netWorth';
 import { formatCurrency } from '../utils/expenses';
+import { IconSelect } from './ui/IconSelect';
+import { Modal } from './ui/Modal';
 
 interface NetWorthProps {
   items: NetWorthItem[];
@@ -20,7 +23,7 @@ export const NetWorth: React.FC<NetWorthProps> = ({ items, summary, onAdd, onRem
   const [notes, setNotes]       = useState('');
   const [editId, setEditId]     = useState<string | null>(null);
   const [editAmt, setEditAmt]   = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   const handleTypeChange = (t: 'asset' | 'liability') => {
     setType(t);
@@ -32,7 +35,7 @@ export const NetWorth: React.FC<NetWorthProps> = ({ items, summary, onAdd, onRem
     if (!name.trim() || isNaN(amt) || amt < 0) return;
     onAdd({ name: name.trim(), amount: amt, category, type, notes });
     setName(''); setAmount(''); setNotes('');
-    setSubmitted(true); setTimeout(() => setSubmitted(false), 1500);
+    setShowForm(false);
   };
 
   const handleUpdateAmt = (id: string) => {
@@ -99,17 +102,20 @@ export const NetWorth: React.FC<NetWorthProps> = ({ items, summary, onAdd, onRem
         </div>
       </div>
 
-      {/* Add form */}
-      <div style={S.formCard}>
-        <div style={S.formTitleRow}>
-          <div style={S.cardTitle}>Add Item</div>
-          {submitted && <span style={S.successTag}>✓ Added!</span>}
-        </div>
+      {/* Add trigger */}
+      <button style={S.triggerBtn} onClick={() => setShowForm(true)}>
+        <Plus size={18} strokeWidth={2.6} /> Add Asset / Liability
+      </button>
+
+      {/* Add form modal */}
+      <Modal open={showForm} onClose={() => setShowForm(false)} title="Add Asset / Liability">
         {/* Type toggle */}
         <div style={S.typeToggle}>
           {(['asset', 'liability'] as const).map((t) => (
-            <button key={t} style={{ ...S.typeBtn, ...(type === t ? S.typeBtnActive : {}) }} onClick={() => handleTypeChange(t)}>
-              {t === 'asset' ? '📈 Asset' : '📉 Liability'}
+            <button key={t} style={{ ...S.typeBtn, ...(type === t ? S.typeBtnActive : {}), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => handleTypeChange(t)}>
+              {t === 'asset'
+                ? <><TrendingUp size={15} strokeWidth={2.3} /> Asset</>
+                : <><TrendingDown size={15} strokeWidth={2.3} /> Liability</>}
             </button>
           ))}
         </div>
@@ -121,16 +127,21 @@ export const NetWorth: React.FC<NetWorthProps> = ({ items, summary, onAdd, onRem
           </div>
           <div style={S.field}>
             <label style={S.label}>Category</label>
-            <select style={S.select} value={category} onChange={(e) => setCategory(e.target.value as any)}>
-              {type === 'asset'
-                ? (Object.entries(ASSET_META) as [AssetCategory, typeof ASSET_META[AssetCategory]][]).map(([k, m]) => (
-                    <option key={k} value={k}>{m.icon} {m.label}</option>
-                  ))
-                : (Object.entries(LIABILITY_META) as [LiabilityCategory, typeof LIABILITY_META[LiabilityCategory]][]).map(([k, m]) => (
-                    <option key={k} value={k}>{m.icon} {m.label}</option>
-                  ))
-              }
-            </select>
+            {type === 'asset' ? (
+              <IconSelect
+                value={category as AssetCategory}
+                onChange={(v) => setCategory(v)}
+                options={(Object.entries(ASSET_META) as [AssetCategory, typeof ASSET_META[AssetCategory]][])
+                  .map(([k, m]) => ({ value: k, label: m.label, icon: m.icon, color: m.color }))}
+              />
+            ) : (
+              <IconSelect
+                value={category as LiabilityCategory}
+                onChange={(v) => setCategory(v)}
+                options={(Object.entries(LIABILITY_META) as [LiabilityCategory, typeof LIABILITY_META[LiabilityCategory]][])
+                  .map(([k, m]) => ({ value: k, label: m.label, icon: m.icon, color: m.color }))}
+              />
+            )}
           </div>
           <div style={S.field}>
             <label style={S.label}>Current Value (KSh)</label>
@@ -142,20 +153,20 @@ export const NetWorth: React.FC<NetWorthProps> = ({ items, summary, onAdd, onRem
           </div>
         </div>
         <div style={S.formBottom}>
-          <button style={{ ...S.addBtn, opacity: !name.trim() || !amount ? 0.5 : 1 }} onClick={handleAdd} disabled={!name.trim() || !amount}>
-            + Add {type === 'asset' ? 'Asset' : 'Liability'}
+          <button style={{ ...S.addBtn, ...S.addBtnModal, opacity: !name.trim() || !amount ? 0.5 : 1 }} onClick={handleAdd} disabled={!name.trim() || !amount}>
+            <Check size={15} strokeWidth={2.6} /> Save {type === 'asset' ? 'Asset' : 'Liability'}
           </button>
         </div>
-      </div>
+      </Modal>
 
       {/* Assets & Liabilities */}
       <div className="two-col-grid">
         {[
-          { title: '📈 Assets', list: assets, emptyMsg: 'No assets added yet', totalColor: 'var(--green)', total: summary.totalAssets },
-          { title: '📉 Liabilities', list: liabilities, emptyMsg: 'No liabilities — great!', totalColor: 'var(--red)', total: summary.totalLiabilities },
-        ].map(({ title, list, emptyMsg, totalColor, total: tot }) => (
-          <div key={title} style={S.listCard}>
-            <div style={S.listTitle}>{title}</div>
+          { key: 'assets', title: 'Assets', TitleIcon: TrendingUp, list: assets, emptyMsg: 'No assets added yet', totalColor: 'var(--green)', total: summary.totalAssets },
+          { key: 'liabilities', title: 'Liabilities', TitleIcon: TrendingDown, list: liabilities, emptyMsg: 'No liabilities — great!', totalColor: 'var(--red)', total: summary.totalLiabilities },
+        ].map(({ key, title, TitleIcon, list, emptyMsg, totalColor, total: tot }) => (
+          <div key={key} style={S.listCard}>
+            <div style={{ ...S.listTitle, display: 'inline-flex', alignItems: 'center', gap: 8 }}><TitleIcon size={18} strokeWidth={2.3} /> {title}</div>
             {list.length === 0 ? (
               <div style={S.emptyMsg}>{emptyMsg}</div>
             ) : list.map((item) => {
@@ -163,9 +174,10 @@ export const NetWorth: React.FC<NetWorthProps> = ({ items, summary, onAdd, onRem
                 ? ASSET_META[item.category as AssetCategory]
                 : LIABILITY_META[item.category as LiabilityCategory];
               const pct = tot > 0 ? Math.round((item.amount / tot) * 100) : 0;
+              const Icon = meta.icon;
               return (
                 <div key={item.id} style={S.itemRow}>
-                  <div style={{ ...S.itemIcon, background: `${meta.color}18` }}>{meta.icon}</div>
+                  <div style={{ ...S.itemIcon, background: `${meta.color}18` }}><Icon size={18} strokeWidth={2.1} style={{ color: meta.color }} /></div>
                   <div style={S.itemInfo}>
                     <div style={S.itemName}>{item.name}</div>
                     <div style={{ ...S.itemCat, color: meta.color }}>{meta.label}</div>
@@ -176,8 +188,8 @@ export const NetWorth: React.FC<NetWorthProps> = ({ items, summary, onAdd, onRem
                       <input style={{ ...S.input, width: 100, padding: '6px 10px', fontSize: 13 }}
                         type="number" value={editAmt} onChange={(e) => setEditAmt(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleUpdateAmt(item.id)} autoFocus />
-                      <button style={S.saveBtn} onClick={() => handleUpdateAmt(item.id)}>✓</button>
-                      <button style={S.cancelBtn} onClick={() => setEditId(null)}>✕</button>
+                      <button style={{ ...S.saveBtn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleUpdateAmt(item.id)} aria-label="Save"><Check size={14} strokeWidth={2.6} /></button>
+                      <button style={{ ...S.cancelBtn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setEditId(null)} aria-label="Cancel"><X size={14} strokeWidth={2.4} /></button>
                     </div>
                   ) : (
                     <div style={S.itemRight}>
@@ -186,8 +198,8 @@ export const NetWorth: React.FC<NetWorthProps> = ({ items, summary, onAdd, onRem
                     </div>
                   )}
                   <div style={S.rowActions}>
-                    <button style={S.editBtn} onClick={() => { setEditId(item.id); setEditAmt(String(item.amount)); }}>✎</button>
-                    <button style={S.removeBtn} onClick={() => onRemove(item.id)}>✕</button>
+                    <button style={{ ...S.editBtn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { setEditId(item.id); setEditAmt(String(item.amount)); }} aria-label="Edit"><Pencil size={13} strokeWidth={2.2} /></button>
+                    <button style={{ ...S.removeBtn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => onRemove(item.id)} aria-label="Remove"><X size={13} strokeWidth={2.4} /></button>
                   </div>
                 </div>
               );
@@ -229,8 +241,10 @@ const S: Record<string, React.CSSProperties> = {
   label: { fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.07em' },
   input: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', color: 'var(--text-1)', fontSize: 14, fontFamily: 'Karla, sans-serif' },
   select: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', color: 'var(--text-1)', fontSize: 14, fontFamily: 'Karla, sans-serif' },
-  formBottom: { display: 'flex', justifyContent: 'flex-end', marginTop: 16 },
-  addBtn: { padding: '11px 24px', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', borderRadius: 9, fontWeight: 700, fontSize: 14, fontFamily: 'Karla, sans-serif' },
+  formBottom: { display: 'flex', justifyContent: 'flex-end', marginTop: 18 },
+  addBtn: { padding: '11px 24px', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', border: 'none', borderRadius: 9, fontWeight: 700, fontSize: 14, fontFamily: 'Karla, sans-serif', cursor: 'pointer' },
+  addBtnModal: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%' },
+  triggerBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'flex-start', padding: '13px 22px', background: 'linear-gradient(135deg, var(--gold), var(--gold-l))', color: '#0A1628', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, fontFamily: 'Karla, sans-serif', cursor: 'pointer', boxShadow: '0 4px 20px var(--gold-glow)' },
   listCard: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '22px 20px' },
   listTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 18, fontWeight: 600, color: 'var(--text-1)', marginBottom: 16 },
   emptyMsg: { color: 'var(--text-3)', fontSize: 13, padding: '8px 0' },

@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertTriangle, Check } from 'lucide-react';
 import type { MonthlyBreakdown, FinancialProfile } from '../types';
 import { CATEGORY_META, formatCurrency } from '../utils/expenses';
 
@@ -112,20 +113,21 @@ export const Insights: React.FC<InsightsProps> = ({ breakdown, profile }) => {
       {/* Category tables */}
       <div className="two-col-grid">
         {[
-          { items: necessaryItems, label: 'Necessary Expenses', icon: '✓', iconColor: 'var(--blue)', total: breakdown.necessaryTotal, totalColor: 'var(--blue)', emptyMsg: 'None logged yet' },
-          { items: unnecessaryItems, label: 'Unnecessary Expenses', icon: '⚠', iconColor: 'var(--amber)', total: breakdown.unnecessaryTotal, totalColor: 'var(--amber)', emptyMsg: 'None logged — great job!' },
-        ].map(({ items, label, icon, iconColor, total: tot, totalColor, emptyMsg }) => (
+          { items: necessaryItems, label: 'Necessary Expenses', icon: Check, iconColor: 'var(--blue)', total: breakdown.necessaryTotal, totalColor: 'var(--blue)', emptyMsg: 'None logged yet' },
+          { items: unnecessaryItems, label: 'Unnecessary Expenses', icon: AlertTriangle, iconColor: 'var(--amber)', total: breakdown.unnecessaryTotal, totalColor: 'var(--amber)', emptyMsg: 'None logged — great job!' },
+        ].map(({ items, label, icon: TitleIcon, iconColor, total: tot, totalColor, emptyMsg }) => (
           <div key={label} style={S.tableCard}>
             <div style={S.tableTitle}>
-              <span style={{ color: iconColor }}>{icon}</span> {label}
+              <TitleIcon size={18} strokeWidth={2.2} style={{ color: iconColor }} /> {label}
             </div>
             {items.length === 0 ? (
               <div style={S.emptyTable}>{emptyMsg}</div>
             ) : items.map(([cat, amount]) => {
               const meta = CATEGORY_META[cat as keyof typeof CATEGORY_META];
+              const RowIcon = meta?.icon;
               return (
                 <div key={cat} style={S.tableRow}>
-                  <span style={S.tableIcon}>{meta?.icon}</span>
+                  {RowIcon ? <span style={S.tableIcon}><RowIcon size={18} strokeWidth={2.1} style={{ color: meta?.color }} /></span> : null}
                   <span style={S.tableCat}>{meta?.label}</span>
                   <span style={S.tableAmt}>{formatCurrency(amount, 'KES')}</span>
                   <span style={{ ...S.tablePct, color: iconColor }}>

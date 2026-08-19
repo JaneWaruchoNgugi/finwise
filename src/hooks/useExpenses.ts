@@ -2,9 +2,10 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Expense, FinancialProfile } from '../types';
 import { generateId, getCurrentMonth, filterByMonth } from '../utils/expenses';
 import { calculateMonthlyBreakdown, getSpendingInsight, getUnnecessaryWarnings } from '../utils/calculations';
+import { getDailyMultiplier } from '../utils/frequency';
 import { syncCollection, syncDoc, deleteFromCollection } from '../lib/sync';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, ensureAuthReady } from '../lib/firebase';
 
 const STORAGE_KEY = 'finwise_expenses';
 const PROFILE_KEY = 'finwise_profile';
@@ -20,7 +21,7 @@ const loadProfile = (): FinancialProfile => {
 const getUid = (): string | null => {
   try {
     const p = JSON.parse(localStorage.getItem('finwise_auth_profile') || 'null');
-    return p?.uid || p?.phone?.replace(/\s+/g, '') || null;
+    return p?.uid || null;
   } catch { return null; }
 };
 
@@ -35,6 +36,7 @@ export const useExpenses = (billsTotal = 0, goalsTotal = 0) => {
 
     (async () => {
       try {
+        await ensureAuthReady();
         const [expenseSnap, profileSnap, legacyProfileSnap] = await Promise.all([
           getDocs(collection(db, 'users', uid, 'expenses')),
           getDoc(doc(db, 'users', uid, 'data', 'financialProfile')),
@@ -52,7 +54,10 @@ export const useExpenses = (billsTotal = 0, goalsTotal = 0) => {
           const nextProfile = {
             monthlyIncome: Number(remoteProfile.monthlyIncome || 0),
             currency: String(remoteProfile.currency || 'KES'),
-            incomeStreams: remoteProfile.incomeStreams,
+            incomeStreams: remoteProfile.incomeStreams ?? undefined,
+            incomeMode: remoteProfile.incomeMode ?? undefined,
+            dailyAmount: remoteProfile.dailyAmount ? Number(remoteProfile.dailyAmount) : undefined,
+            daysPerWeek: remoteProfile.daysPerWeek ? Number(remoteProfile.daysPerWeek) : undefined,
           } as FinancialProfile;
           setProfile(nextProfile);
           localStorage.setItem(PROFILE_KEY, JSON.stringify(nextProfile));
@@ -84,14 +89,27 @@ export const useExpenses = (billsTotal = 0, goalsTotal = 0) => {
     deleteFromCollection('expenses', id);
   }, [expenses]);
 
-  const updateProfile = useCallback((income: number, currency: string, streams?: import('../types').IncomeStream[]) => {
-    saveProfile({ monthlyIncome: income, currency, incomeStreams: streams });
+  const updateExpense = useCallback((id: string, patch: Partial<Omit<Expense, 'id'>>) => {
+    const updated = expenses.map((e) => (e.id === id ? { ...e, ...patch } : e));
+    setExpenses(updated);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    syncCollection('expenses', updated);
+  }, [expenses]);
+
+  const updateProfile = useCallback((
+    income: number,
+    currency: string,
+    streams?: import('../types').IncomeStream[],
+    meta?: Partial<Pick<FinancialProfile, 'incomeMode' | 'dailyAmount' | 'daysPerWeek'>>,
+  ) => {
+    saveProfile({ monthlyIncome: income, currency, incomeStreams: streams, ...meta });
   }, []);
 
   const monthlyExpenses = useMemo(() => filterByMonth(expenses, selectedMonth), [expenses, selectedMonth]);
-  const breakdown = useMemo(() => calculateMonthlyBreakdown(monthlyExpenses, profile.monthlyIncome, billsTotal, goalsTotal), [monthlyExpenses, profile.monthlyIncome, billsTotal, goalsTotal]);
+  const dailyMultiplier = useMemo(() => getDailyMultiplier(profile), [profile]);
+  const breakdown = useMemo(() => calculateMonthlyBreakdown(monthlyExpenses, profile.monthlyIncome, billsTotal, goalsTotal, dailyMultiplier), [monthlyExpenses, profile.monthlyIncome, billsTotal, goalsTotal, dailyMultiplier]);
   const insight = useMemo(() => getSpendingInsight(breakdown, profile.monthlyIncome), [breakdown, profile.monthlyIncome]);
   const warnings = useMemo(() => getUnnecessaryWarnings(monthlyExpenses, profile.monthlyIncome), [monthlyExpenses, profile.monthlyIncome]);
 
-  return { expenses, monthlyExpenses, profile, selectedMonth, setSelectedMonth, breakdown, insight, warnings, addExpense, removeExpense, updateProfile };
+  return { expenses, monthlyExpenses, profile, selectedMonth, setSelectedMonth, breakdown, insight, warnings, addExpense, removeExpense, updateExpense, updateProfile };
 };

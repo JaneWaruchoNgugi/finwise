@@ -1,4 +1,5 @@
 import React from 'react';
+import { ShieldAlert, BarChart3, ClipboardList, PartyPopper, CircleCheck, CircleDashed, CircleAlert } from 'lucide-react';
 import type { EmergencyFundData } from '../types';
 import { formatCurrency } from '../utils/expenses';
 
@@ -27,14 +28,15 @@ export const EmergencyFund: React.FC<EmergencyFundProps> = ({
   const incomeAlloc = monthlyIncome > 0 ? Math.ceil((monthlyRec / monthlyIncome) * 100) : 0;
 
   const statusColor = progressPct >= 80 ? 'var(--green)' : progressPct >= 40 ? 'var(--amber)' : 'var(--red)';
-  const statusLabel = progressPct >= 100 ? '🎉 Complete!' : progressPct >= 80 ? '🟢 Almost there' : progressPct >= 40 ? '🟡 In progress' : '🔴 Just started';
+  const StatusIcon = progressPct >= 100 ? PartyPopper : progressPct >= 80 ? CircleCheck : progressPct >= 40 ? CircleDashed : CircleAlert;
+  const statusText = progressPct >= 100 ? 'Complete!' : progressPct >= 80 ? 'Almost there' : progressPct >= 40 ? 'In progress' : 'Just started';
 
   return (
     <div style={S.container} className="animate-in">
       {/* Page header */}
       <div style={S.pageHeader} className="page-header-row">
         <div>
-          <h1 style={S.pageTitle}>🛡 Emergency Fund</h1>
+          <h1 style={S.pageTitle}><ShieldAlert size={26} strokeWidth={2.2} /> Emergency Fund</h1>
           <p style={S.pageSub}>Your financial safety net — aim for {data.targetMonths} months of living expenses</p>
         </div>
         <div style={S.targetToggle} className="toggle-group">
@@ -57,8 +59,8 @@ export const EmergencyFund: React.FC<EmergencyFundProps> = ({
             <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(26px, 5vw, 40px)', fontWeight: 700, color: statusColor }}>
               {formatCurrency(data.currentAmount, currency)}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4 }}>
-              of {formatCurrency(targetAmount, currency)} target · {statusLabel}
+            <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+              of {formatCurrency(targetAmount, currency)} target · <StatusIcon size={14} strokeWidth={2.2} style={{ color: statusColor }} /> {statusText}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -90,7 +92,7 @@ export const EmergencyFund: React.FC<EmergencyFundProps> = ({
 
       {/* Recommendations */}
       <div style={S.card}>
-        <div style={S.cardTitle}>📊 Recommendations</div>
+        <div style={S.cardTitle}><BarChart3 size={20} strokeWidth={2.2} /> Recommendations</div>
         <div style={S.recList}>
           {[
             { label: 'Monthly contribution', value: formatCurrency(monthlyRec, currency), sub: 'to reach target in 6 months' },
@@ -113,7 +115,7 @@ export const EmergencyFund: React.FC<EmergencyFundProps> = ({
       {/* Contribution history */}
       {data.contributions.length > 0 && (
         <div style={S.card}>
-          <div style={S.cardTitle}>📋 Contribution History</div>
+          <div style={S.cardTitle}><ClipboardList size={20} strokeWidth={2.2} /> Contribution History</div>
           <div>
             {data.contributions.slice(0, 15).map((c, i) => (
               <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
@@ -137,7 +139,7 @@ export const EmergencyFund: React.FC<EmergencyFundProps> = ({
 const S: Record<string, React.CSSProperties> = {
   container: { display: 'flex', flexDirection: 'column', gap: 20 },
   pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 },
-  pageTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 28, fontWeight: 700, color: 'var(--gold-l)', margin: 0 },
+  pageTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 28, fontWeight: 700, color: 'var(--gold-l)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 },
   pageSub: { fontSize: 13, color: 'var(--text-2)', marginTop: 4 },
   targetToggle: { display: 'flex', gap: 6 },
   toggleBtn: { padding: '7px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-3)', fontFamily: 'Karla, sans-serif', fontSize: 13, cursor: 'pointer' },
@@ -148,7 +150,7 @@ const S: Record<string, React.CSSProperties> = {
   bigBarFill: { height: '100%', borderRadius: 99, transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)' },
   kpi: { background: 'var(--bg-surface)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' },
   card: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 26px' },
-  cardTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 20, fontWeight: 600, color: 'var(--text-1)', marginBottom: 18 },
+  cardTitle: { fontFamily: 'Cormorant Garamond, serif', fontSize: 20, fontWeight: 600, color: 'var(--text-1)', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 },
   recList: { display: 'flex', flexDirection: 'column', gap: 0 },
   recRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' },
 };

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { X, Check, Ban, Trash2 } from 'lucide-react';
 import { addDoc, collection, getDocs, doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import type { AdminUser } from '../../../types';
@@ -116,7 +117,7 @@ export const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{uid}</div>
           </div>
-          <button onClick={onClose} style={closeBtn}>✕</button>
+          <button onClick={onClose} style={{ ...closeBtn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Close"><X size={16} strokeWidth={2.4} /></button>
         </div>
 
         {isSuperAdmin && (
@@ -126,11 +127,14 @@ export const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
               background: blacklisted ? 'var(--green-dim)' : 'var(--amber-dim)',
               color: blacklisted ? 'var(--green)' : 'var(--amber)',
               border: `1px solid ${blacklisted ? 'var(--green-b)' : 'rgba(217,119,6,0.3)'}`,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
             }}>
-              {blacklisted ? '✓ Unblacklist' : '⊘ Blacklist'}
+              {blacklisted
+                ? <><Check size={14} strokeWidth={2.6} /> Unblacklist</>
+                : <><Ban size={14} strokeWidth={2.4} /> Blacklist</>}
             </button>
-            <button onClick={handleDelete} disabled={busy} style={{ ...actionBtn, background: 'var(--red-dim)', color: 'var(--red)', border: '1px solid var(--red-b)' }}>
-              🗑 Delete User
+            <button onClick={handleDelete} disabled={busy} style={{ ...actionBtn, background: 'var(--red-dim)', color: 'var(--red)', border: '1px solid var(--red-b)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Trash2 size={14} strokeWidth={2.4} /> Delete User
             </button>
           </div>
         )}

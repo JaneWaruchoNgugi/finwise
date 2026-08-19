@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,3 +15,13 @@ const firebaseConfig = {
 export const app       = initializeApp(firebaseConfig);
 export const db        = getFirestore(app);
 export const functions = getFunctions(app, 'us-central1');
+export const auth      = getAuth(app);
+
+// Resolves once Firebase Auth has restored (or confirmed absent) the session, so
+// Firestore reads/writes carry the auth token once per-user rules are enforced.
+export const ensureAuthReady: () => Promise<void> = (() => {
+  const p = new Promise<void>((resolve) => {
+    const unsub = onAuthStateChanged(auth, () => { unsub(); resolve(); });
+  });
+  return () => p;
+})();

@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {
+  Radio, UserCog, Save, Check, Siren, Mail, MessageCircle, Phone,
+  Sparkles, Bot, ScrollText,
+} from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../lib/firebase';
 import type { AlertContact, AlertLog, Bill, Goal, SubscriptionTier } from '../types';
@@ -52,7 +56,7 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
 }) => {
   const [form, setForm] = useState<AlertContact>(contact);
   const [emailTo, setEmailTo] = useState(contact.email || '');
-  const [emailSubject, setEmailSubject] = useState(`FinWise update for ${userName || 'User'}`);
+  const [emailSubject, setEmailSubject] = useState(`PesaFlow update for ${userName || 'User'}`);
   const [emailMessage, setEmailMessage] = useState('');
   const [whatsappTo, setWhatsappTo] = useState(contact.whatsapp || '');
   const [whatsappMessage, setWhatsappMessage] = useState('');
@@ -77,8 +81,8 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
   const efPct = efTarget > 0 ? Math.min(100, Math.round((efCurrent / efTarget) * 100)) : 0;
 
   const buildSnapshot = (): string =>
-    `🚨 FinWise SOS Alert
-From: ${userName || 'FinWise User'}
+    `🚨 PesaFlow SOS Alert
+From: ${userName || 'PesaFlow User'}
 Time: ${new Date().toLocaleString('en-KE', { dateStyle: 'full', timeStyle: 'short' })}
 
 📊 FINANCIAL SNAPSHOT:
@@ -134,7 +138,7 @@ Please assist urgently.`;
   }, []);
 
   const buildEmergencyPrompt = (): string =>
-    `Create a FinWise SOS emergency money plan from this snapshot. Return a concise action plan with these sections: 1) urgent risk, 2) next 24 hours, 3) bills/debt priority, 4) spending cuts, 5) what to tell my advisor. Use Kenyan context and be practical.\n\n${buildSnapshot()}`;
+    `Create a PesaFlow SOS emergency money plan from this snapshot. Return a concise action plan with these sections: 1) urgent risk, 2) next 24 hours, 3) bills/debt priority, 4) spending cuts, 5) what to tell my advisor. Use Kenyan context and be practical.\n\n${buildSnapshot()}`;
 
   const buildFallbackPlan = (): string => {
     const actions = [
@@ -255,14 +259,14 @@ Please assist urgently.`;
       {/* Page header */}
       <div style={S.pageHeader}>
         <div>
-          <h1 style={S.pageTitle}>📡 Alerts & SOS</h1>
+          <h1 style={S.pageTitle}><Radio size={26} strokeWidth={2.2} style={{ verticalAlign: '-3px', marginRight: 8 }} /> Alerts &amp; SOS</h1>
           <p style={S.pageSub}>Configure your advisor contacts and send instant financial snapshots when you need help</p>
         </div>
       </div>
 
       {/* Contact config */}
       <div style={S.card}>
-        <div style={S.cardTitle}>👤 Advisor / Trusted Contact Setup</div>
+        <div style={{ ...S.cardTitle, display: 'inline-flex', alignItems: 'center', gap: 8 }}><UserCog size={20} strokeWidth={2.2} /> Advisor / Trusted Contact Setup</div>
         <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 20, lineHeight: 1.6 }}>
           Set up your financial advisor or trusted person's contact details. When you trigger an SOS, they'll instantly receive your complete financial snapshot.
         </p>
@@ -289,11 +293,13 @@ Please assist urgently.`;
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button style={S.primaryBtn} onClick={handleSave}>
-            {saved ? '✓ Saved!' : '💾 Save Contact'}
+          <button style={{ ...S.primaryBtn, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={handleSave}>
+            {saved
+              ? <><Check size={16} strokeWidth={3} /> Saved!</>
+              : <><Save size={16} strokeWidth={2.4} /> Save Contact</>}
           </button>
           {hasContact && (
-            <span style={{ fontSize: 12, color: 'var(--green)' }}>✓ Contact configured — SOS alerts ready</span>
+            <span style={{ fontSize: 12, color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Check size={14} strokeWidth={3} /> Contact configured — SOS alerts ready</span>
           )}
         </div>
       </div>
@@ -331,7 +337,7 @@ Please assist urgently.`;
 
       {/* SOS action buttons */}
       <div style={S.card}>
-        <div style={S.cardTitle}>🚨 Send SOS Alert Now</div>
+        <div style={{ ...S.cardTitle, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Siren size={20} strokeWidth={2.2} /> Send SOS Alert Now</div>
         <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 20, lineHeight: 1.6 }}>
           Instantly send your complete financial snapshot to {contact.name || 'your advisor'}.
           They'll receive your income, expenses, bills, net worth, goals, and emergency fund status.
@@ -341,7 +347,7 @@ Please assist urgently.`;
           {/* Email */}
           <button style={{ ...S.sosBtn, ...(canUseComposeTools ? S.sosEmail : S.sosDisabled) }}
             onClick={openEmailComposer} disabled={!canUseComposeTools}>
-            <span style={S.sosIcon}>📧</span>
+            <span style={S.sosIcon}><Mail size={28} strokeWidth={2} /></span>
             <div style={S.sosBtnTitle}>Send Email</div>
             <div style={S.sosBtnSub}>{canUseComposeTools ? 'Open the email composer' : 'Gold only'}</div>
           </button>
@@ -349,7 +355,7 @@ Please assist urgently.`;
           {/* WhatsApp */}
           <button style={{ ...S.sosBtn, ...(canUseComposeTools ? S.sosWhatsapp : S.sosDisabled) }}
             onClick={openWhatsappComposer} disabled={!canUseComposeTools}>
-            <span style={S.sosIcon}>💬</span>
+            <span style={S.sosIcon}><MessageCircle size={28} strokeWidth={2} /></span>
             <div style={{ ...S.sosBtnTitle, color: contact.whatsapp ? 'var(--green)' : 'inherit' }}>WhatsApp</div>
             <div style={S.sosBtnSub}>{canUseComposeTools ? 'Open the WhatsApp composer' : 'Gold only'}</div>
           </button>
@@ -357,7 +363,7 @@ Please assist urgently.`;
           {/* Phone */}
           <button style={{ ...S.sosBtn, ...(contact.phone ? S.sosPhone : S.sosDisabled) }}
             onClick={callNow} disabled={!contact.phone}>
-            <span style={S.sosIcon}>📞</span>
+            <span style={S.sosIcon}><Phone size={28} strokeWidth={2} /></span>
             <div style={{ ...S.sosBtnTitle, color: contact.phone ? 'var(--blue)' : 'inherit' }}>Call Now</div>
             <div style={S.sosBtnSub}>{contact.phone || 'No phone configured'}</div>
           </button>
@@ -365,7 +371,7 @@ Please assist urgently.`;
           {/* AI Emergency Plan */}
           <button style={{ ...S.sosBtn, borderColor: 'var(--border-acc)', background: activeCompose === 'ai' ? 'var(--gold-dim)' : 'transparent', cursor: aiLoading ? 'wait' : 'pointer', boxShadow: activeCompose === 'ai' ? '0 0 0 1px var(--border-acc) inset' : 'none' }}
             onClick={openAiPlan} disabled={aiLoading} aria-pressed={activeCompose === 'ai'}>
-            <span style={S.sosIcon}>✦</span>
+            <span style={S.sosIcon}><Sparkles size={28} strokeWidth={2} /></span>
             <div style={{ ...S.sosBtnTitle, color: 'var(--gold)' }}>{aiLoading ? 'Thinking...' : 'AI Plan'}</div>
             <div style={S.sosBtnSub}>Emergency action steps</div>
           </button>
@@ -373,7 +379,7 @@ Please assist urgently.`;
           {/* AI Chat */}
           <button style={{ ...S.sosBtn, borderColor: 'var(--border-acc)', background: 'var(--bg-card)', cursor: 'pointer' }}
             onClick={onNavigateToAdvisor}>
-            <span style={S.sosIcon}>💬</span>
+            <span style={S.sosIcon}><Bot size={28} strokeWidth={2} /></span>
             <div style={{ ...S.sosBtnTitle, color: 'var(--gold)' }}>AI Chat</div>
             <div style={S.sosBtnSub}>Ask follow-up questions</div>
           </button>
@@ -449,7 +455,7 @@ Please assist urgently.`;
       {/* AI emergency plan */}
       {activeCompose === 'ai' && (aiPlan || aiError || aiLoading) && (
         <div style={{ ...S.card, borderColor: 'var(--border-acc)', background: 'var(--gold-dim)' }}>
-          <div style={S.cardTitle}>✦ AI Emergency Plan</div>
+          <div style={{ ...S.cardTitle, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Sparkles size={20} strokeWidth={2.2} /> AI Emergency Plan</div>
           <p style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 14 }}>
             Generated from your current SOS snapshot. Use this before sending the alert or when talking to your advisor.
           </p>
@@ -463,7 +469,7 @@ Please assist urgently.`;
       {log.length > 0 && (
         <div style={S.card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={S.cardTitle}>📜 Alert History</div>
+            <div style={{ ...S.cardTitle, display: 'inline-flex', alignItems: 'center', gap: 8 }}><ScrollText size={20} strokeWidth={2.2} /> Alert History</div>
             <button onClick={onClearLog}
               style={{ padding: '6px 14px', background: 'transparent', border: '1px solid var(--red-b)', borderRadius: 8, color: 'var(--red)', fontSize: 12, fontFamily: 'Karla, sans-serif', cursor: 'pointer' }}>
               Clear History
@@ -471,8 +477,12 @@ Please assist urgently.`;
           </div>
           {log.slice(0, 20).map((entry, i) => (
             <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-              <span style={{ fontSize: 20 }}>
-                {entry.channel === 'email' ? '📧' : entry.channel === 'whatsapp' ? '💬' : '📞'}
+              <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--text-2)' }}>
+                {entry.channel === 'email'
+                  ? <Mail size={20} strokeWidth={2} />
+                  : entry.channel === 'whatsapp'
+                    ? <MessageCircle size={20} strokeWidth={2} />
+                    : <Phone size={20} strokeWidth={2} />}
               </span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, color: 'var(--text-1)', textTransform: 'capitalize' }}>Alert via {entry.channel}</div>
@@ -480,7 +490,7 @@ Please assist urgently.`;
                   {new Date(entry.timestamp).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })}
                 </div>
               </div>
-              <span style={{ fontSize: 11, color: 'var(--green)', background: 'var(--green-dim)', padding: '3px 10px', borderRadius: 20 }}>Sent ✓</span>
+              <span style={{ fontSize: 11, color: 'var(--green)', background: 'var(--green-dim)', padding: '3px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>Sent <Check size={12} strokeWidth={3} /></span>
             </div>
           ))}
         </div>

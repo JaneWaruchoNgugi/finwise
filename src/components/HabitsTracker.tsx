@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Check, Circle, Sprout, RotateCcw, X, PartyPopper } from 'lucide-react';
 import type { Habit } from '../types';
 
 interface HabitsTrackerProps {
@@ -41,7 +42,7 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
           {habits.map((h) => (
             <button key={h.id} onClick={() => onToggle(h.id)}
               style={{ ...S.pill, ...(h.done ? S.pillDone : {}) }}>
-              <span>{h.done ? '✓' : '○'}</span>
+              <span style={{ display: 'inline-flex' }}>{h.done ? <Check size={13} strokeWidth={3} /> : <Circle size={13} strokeWidth={2.2} />}</span>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{h.text}</span>
             </button>
           ))}
@@ -54,7 +55,7 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
     <div style={S.container} className="animate-in">
       <div style={S.header}>
         <div>
-          <h2 style={S.title}>🌱 Daily Financial Habits</h2>
+          <h2 style={S.title}><Sprout size={22} strokeWidth={2.2} /> Daily Financial Habits</h2>
           <p style={S.sub}>Build consistent money habits. These reset automatically each day.</p>
         </div>
         <div style={S.scoreCircle}>
@@ -82,7 +83,7 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
         <button style={S.addBtn} onClick={handleAdd} disabled={!newHabit.trim()}>+ Add</button>
         {onResetAll && (
           <button onClick={onResetAll} style={S.resetBtn} title="Reset all habits for today">
-            ↺ Reset
+            <RotateCcw size={13} strokeWidth={2.2} /> Reset
           </button>
         )}
       </div>
@@ -93,13 +94,13 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
           <div key={h.id} style={{ ...S.habitItem, borderTop: i > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
             <button onClick={() => onToggle(h.id)}
               style={{ ...S.checkbox, ...(h.done ? S.checkboxDone : {}) }}>
-              {h.done && '✓'}
+              {h.done && <Check size={15} strokeWidth={3} />}
             </button>
             <span style={{ ...S.habitText, textDecoration: h.done ? 'line-through' : 'none', color: h.done ? 'var(--text-3)' : 'var(--text-1)' }}>
               {h.text}
             </span>
-            {h.done && <span style={S.doneBadge}>Done ✓</span>}
-            <button onClick={() => onRemove(h.id)} style={S.removeBtn}>✕</button>
+            {h.done && <span style={S.doneBadge}>Done <Check size={11} strokeWidth={3} /></span>}
+            <button onClick={() => onRemove(h.id)} style={S.removeBtn}><X size={14} strokeWidth={2.4} /></button>
           </div>
         ))}
         {habits.length === 0 && (
@@ -111,7 +112,7 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
 
       {completedCount === habits.length && habits.length > 0 && (
         <div style={S.completeBanner}>
-          🎉 All habits complete for today! Great financial discipline!
+          <PartyPopper size={16} strokeWidth={2.2} /> All habits complete for today! Great financial discipline!
         </div>
       )}
     </div>
@@ -121,22 +122,22 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
 const S: Record<string, React.CSSProperties> = {
   container: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 26px', display: 'flex', flexDirection: 'column', gap: 18 },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
-  title: { fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: 'var(--text-1)', margin: 0 },
+  title: { fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: 'var(--text-1)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 },
   sub: { fontSize: 13, color: 'var(--text-2)', marginTop: 4 },
   scoreCircle: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
   scoreLabel: { fontSize: 11, color: 'var(--text-3)', textAlign: 'center' },
   addRow: { display: 'flex', gap: 10, alignItems: 'center' },
   input: { flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 9, padding: '10px 14px', color: 'var(--text-1)', fontSize: 13, fontFamily: 'Karla, sans-serif', outline: 'none' },
   addBtn: { padding: '10px 18px', background: 'var(--gold-dim)', border: '1px solid var(--border-acc)', borderRadius: 9, color: 'var(--gold)', fontSize: 13, fontFamily: 'Karla, sans-serif', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
-  resetBtn: { padding: '10px 14px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 9, color: 'var(--text-3)', fontSize: 12, fontFamily: 'Karla, sans-serif', cursor: 'pointer' },
+  resetBtn: { padding: '10px 14px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 9, color: 'var(--text-3)', fontSize: 12, fontFamily: 'Karla, sans-serif', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 },
   list: { display: 'flex', flexDirection: 'column' },
   habitItem: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' },
   checkbox: { width: 24, height: 24, borderRadius: 7, border: '1.5px solid var(--text-3)', background: 'transparent', cursor: 'pointer', color: '#0A1628', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: '0.15s' },
   checkboxDone: { borderColor: 'var(--green)', background: 'var(--green)' },
   habitText: { flex: 1, fontSize: 14, lineHeight: 1.4, transition: '0.2s' },
-  doneBadge: { fontSize: 10, color: 'var(--green)', background: 'var(--green-dim)', padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' },
-  removeBtn: { background: 'transparent', border: 'none', color: 'var(--text-3)', fontSize: 14, cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
-  completeBanner: { padding: '12px 16px', background: 'var(--green-dim)', border: '1px solid var(--green-b)', borderRadius: 10, fontSize: 14, color: 'var(--green)', textAlign: 'center', fontWeight: 600 },
+  doneBadge: { fontSize: 10, color: 'var(--green)', background: 'var(--green-dim)', padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3 },
+  removeBtn: { background: 'transparent', border: 'none', color: 'var(--text-3)', fontSize: 14, cursor: 'pointer', padding: '0 4px', lineHeight: 1, display: 'inline-flex', alignItems: 'center' },
+  completeBanner: { padding: '12px 16px', background: 'var(--green-dim)', border: '1px solid var(--green-b)', borderRadius: 10, fontSize: 14, color: 'var(--green)', textAlign: 'center', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
   // Compact mode
   compactContainer: { display: 'flex', flexDirection: 'column', gap: 10 },
   compactHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },

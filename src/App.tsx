@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, Bell, Bot, Crown, Goal, Landmark, Lock, ReceiptText, Shield, Sparkles, TrendingUp } from 'lucide-react';
+import { BarChart3, Bell, Bot, Crown, Download, Landmark, Lock, ReceiptText, Shield, Sparkles, TrendingUp } from 'lucide-react';
 import './styles/globals.css';
 import type { AppView, SubscriptionTier } from './types';
 import { useExpenses }      from './hooks/useExpenses';
@@ -28,7 +28,8 @@ import { NetWorth }         from './components/NetWorth';
 import { AIChat }           from './components/AIChat';
 import { EmergencyFund }    from './components/EmergencyFund';
 import { AlertsPanel }      from './components/AlertsPanel';
-import { LandingPage, PLAN_LOCKED_VIEWS } from './components/LandingPage';
+import { LandingPage }      from './components/LandingPage';
+import { PLAN_LOCKED_VIEWS } from './lib/planAccess';
 import { PaymentGate }      from './components/PaymentGate';
 import { UpgradePage }      from './components/UpgradePage';
 import { ProfilePage }      from './components/ProfilePage';
@@ -66,7 +67,6 @@ const App: React.FC = () => {
   const [activeView, setActiveView] = useState<AppView>('advisor');
   const [stage, setStage] = useState<AppStage>('landing');
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('free');
-  const [prefilledPhone] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup');
 
   const auth = useAuth();
@@ -78,7 +78,7 @@ const App: React.FC = () => {
 
   const {
     monthlyExpenses, profile, breakdown, insight,
-    warnings, addExpense, removeExpense, updateProfile,
+    warnings, addExpense, removeExpense, updateExpense, updateProfile,
   } = useExpenses(bills.monthlyTotal, goals.totalSaved);
 
   const {
@@ -89,24 +89,42 @@ const App: React.FC = () => {
   const emergencyFund = useEmergencyFund(breakdown.totalExpenses || profile.monthlyIncome * 0.6);
   const alerts = useAlerts();
 
-  const handleUpdateIncome = (income: number, streams?: import('./types').IncomeStream[]) =>
-    updateProfile(income, profile.currency, streams);
+  const handleUpdateIncome = (
+    income: number,
+    streams?: import('./types').IncomeStream[],
+    meta?: Partial<Pick<import('./types').FinancialProfile, 'incomeMode' | 'dailyAmount' | 'daysPerWeek'>>,
+  ) => updateProfile(income, profile.currency, streams, meta);
 
   const openPaidPlan = (tier: SubscriptionTier) => {
     setSelectedTier(tier);
     setStage('payment');
   };
 
+  // ── Stage: Loading ──────────────────────────────────────
+  // While Firebase restores the persisted session, show a neutral splash instead of
+  // flashing the landing/login screen at an already-signed-in user.
+  if (auth.status === 'loading') {
+    return (
+      <ThemeProvider>
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-page)' }}>
+          <style>{`@keyframes appSplashSpin { to { transform: rotate(360deg); } }`}</style>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', border: '3px solid rgba(255,127,0,0.25)', borderTopColor: 'var(--gold)', animation: 'appSplashSpin 0.8s linear infinite' }} />
+        </div>
+      </ThemeProvider>
+    );
+  }
+
   // ── Stage: Landing ──────────────────────────────────────
-  if (!auth.isUnlocked && stage === 'landing') {
+  if (auth.status !== 'ready' && stage === 'landing') {
     return (
       <ThemeProvider>
         <LandingPage
           onSelectTier={(tier) => {
-            setSelectedTier(tier);
+            // Gold is "coming soon" and not purchasable yet — everything else is free.
+            if (tier !== 'free') return;
+            setSelectedTier('free');
             setAuthMode('signup');
-            if (tier === 'free') setStage('auth');
-            else setStage('payment');
+            setStage('auth');
           }}
           onLogin={() => { setAuthMode('login'); setStage('auth'); }}
         />
@@ -114,39 +132,23 @@ const App: React.FC = () => {
     );
   }
 
-  // ── Stage: Payment ──────────────────────────────────────
-  if (!auth.isUnlocked && stage === 'payment') {
+  // ── Stage: Auth / Verify / Add-phone ────────────────────
+  // 'loading' already returned above, so status here is signed-out | unverified | needs-phone.
+  if (auth.status !== 'ready') {
     return (
       <ThemeProvider>
         <AuthGate
-          hasProfile={!!auth.profile}
-          onCreateProfile={auth.createProfile}
-          onUnlock={auth.unlock}
-          onCheckPhoneExists={auth.checkPhoneExists}
+          status={auth.status}
+          onSignUp={auth.signUpWithEmail}
+          onSignIn={auth.signInWithEmail}
+          onGoogle={auth.signInWithGoogle}
+          onSavePhone={auth.savePhone}
+          onResendVerification={auth.resendVerification}
+          onRefreshVerification={auth.refreshVerification}
+          onSendPinReset={auth.sendPinReset}
           loading={auth.loading}
           error={auth.error}
-          prefilledPhone={prefilledPhone}
-          tier={selectedTier}
-          defaultMode="signup"
-        />
-      </ThemeProvider>
-    );
-  }
-
-  // ── Stage: Auth ─────────────────────────────────────────
-  if (!auth.isUnlocked) {
-    return (
-      <ThemeProvider>
-        <AuthGate
-          hasProfile={!!auth.profile}
-          onCreateProfile={auth.createProfile}
-          onUnlock={auth.unlock}
-          onCheckPhoneExists={auth.checkPhoneExists}
-          loading={auth.loading}
-          error={auth.error}
-          prefilledPhone={prefilledPhone}
-          tier={selectedTier}
-          defaultMode={authMode}
+          defaultMode={stage === 'payment' ? 'signup' : authMode}
         />
       </ThemeProvider>
     );
@@ -182,32 +184,30 @@ const App: React.FC = () => {
     bills: { icon: ReceiptText, tier: 'silver', title: 'Turn expenses into a monthly bill plan', body: 'Silver unlocks recurring bills, due dates, and payment status so users stop guessing what is coming next.', bullets: ['Recurring bills', 'Due date tracking', 'Paid and overdue status'] },
     networth: { icon: Landmark, tier: 'silver', title: 'Show the full financial position', body: 'Silver adds net worth so assets and debts sit beside daily spending.', bullets: ['Assets and liabilities', 'Net worth summary', 'Progress over time'] },
     emergency: { icon: Shield, tier: 'silver', title: 'Build an emergency fund with structure', body: 'Silver gives users a target, current balance, and months-covered view.', bullets: ['Emergency target', 'Deposit tracking', 'Months covered'] },
-    investments: { icon: TrendingUp, tier: 'gold', title: 'Reveal portfolio growth and allocation', body: 'Gold unlocks investment tracking for SACCOs, MMFs, stocks, bonds, crypto, and long-term projections.', bullets: ['Portfolio tracker', 'Allocation view', 'Growth projections'] },
-    insights: { icon: BarChart3, tier: 'gold', title: 'Your full spending insight is ready', body: 'Gold turns logged expenses into deeper comparisons, lifestyle warnings, and savings opportunities.', bullets: ['Ideal vs actual allocation', 'Lifestyle overspend warnings', 'Savings opportunity estimates'] },
-    chat: { icon: Bot, tier: 'gold', title: 'Ask AI about your actual money', body: 'Gold unlocks the AI advisor with context from spending, goals, bills, investments, and net worth.', bullets: ['Personal AI guidance', 'Context-aware answers', 'Action plans'] },
-    alerts: { icon: Bell, tier: 'gold', title: 'Unlock alerts and SOS support', body: 'Gold adds emergency alerts and AI-supported action planning when the numbers need attention.', bullets: ['SOS contacts', 'Emergency summaries', 'AI action plans'] },
+    investments: { icon: TrendingUp, tier: 'gold', title: 'Investment tracking is coming soon', body: 'Our upcoming Gold plan will track SACCOs, MMFs, stocks, bonds, crypto, and long-term projections in one portfolio view.', bullets: ['Portfolio tracker', 'Allocation view', 'Growth projections'] },
+    insights: { icon: BarChart3, tier: 'gold', title: 'Deeper spending insights are coming soon', body: 'Gold will turn your logged expenses into deeper comparisons, lifestyle warnings, and savings opportunities.', bullets: ['Ideal vs actual allocation', 'Lifestyle overspend warnings', 'Savings opportunity estimates'] },
+    chat: { icon: Bot, tier: 'gold', title: 'The AI money advisor is coming soon', body: 'Gold will bring an AI advisor with context from your spending, goals, bills, investments, and net worth.', bullets: ['Personal AI guidance', 'Context-aware answers', 'Action plans'] },
+    alerts: { icon: Bell, tier: 'gold', title: 'Alerts & SOS support are coming soon', body: 'Gold will add emergency alerts and AI-supported action planning when the numbers need attention.', bullets: ['SOS contacts', 'Emergency summaries', 'AI action plans'] },
   };
 
   const UpgradeWall: React.FC<{ view: AppView }> = ({ view }) => {
     const copy = wallCopy[view] ?? { icon: Lock, tier: 'silver' as SubscriptionTier, title: `${view.charAt(0).toUpperCase() + view.slice(1)} is a premium feature`, body: 'Upgrade your plan to unlock this and more tools.', bullets: ['More planning tools', 'Better money visibility', 'Premium support'] };
     const Icon = copy.icon;
-    const targetTier = copy.tier;
     return (
       <div style={upgradeWallStyle} className="animate-in">
         <div style={wallIconStyle}><Icon size={28} strokeWidth={2.1} /></div>
-        <div style={wallBadgeStyle}><Sparkles size={13} /> {targetTier === 'gold' ? 'Gold preview' : 'Silver preview'}</div>
+        <div style={wallBadgeStyle}><Sparkles size={13} /> Coming soon</div>
         <div style={wallTitleStyle}>{copy.title}</div>
         <div style={wallBodyStyle}>{copy.body}</div>
         <div style={wallBulletGridStyle}>
           {copy.bullets.map((bullet) => <div key={bullet} style={wallBulletStyle}><Lock size={13} /> {bullet}</div>)}
         </div>
         <div style={wallActionRowStyle}>
-          <button style={targetTier === 'gold' ? wallGoldBtnStyle : wallSilverBtnStyle} onClick={() => openPaidPlan(targetTier)}>
-            {targetTier === 'gold' ? <Crown size={16} /> : <Goal size={16} />} Unlock {TIER_META[targetTier].name} for KES {TIER_META[targetTier].price.toLocaleString()}
+          <button style={{ ...wallGoldBtnStyle, opacity: 0.7, cursor: 'default' }} disabled>
+            <Crown size={16} /> Premium — Coming soon
           </button>
-          {targetTier !== 'gold' && <button style={wallGoldBtnStyle} onClick={() => openPaidPlan('gold')}><Crown size={16} /> Compare Gold</button>}
         </div>
-        <div style={wallCurrentStyle}>Current plan: <strong style={{ color: TIER_META[userTier].color }}>{TIER_META[userTier].name}</strong></div>
+        <div style={wallCurrentStyle}>Everything else is <strong style={{ color: TIER_META[userTier].color }}>free</strong> — enjoy the app while we finish this.</div>
       </div>
     );
   };
@@ -217,19 +217,19 @@ const App: React.FC = () => {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
 
       {/* Payment overlay when upgrading from within the app */}
-      {stage === 'payment' && auth.isUnlocked && (
+      {stage === 'payment' && auth.status === 'ready' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 500 }}>
           <PaymentGate
             key={selectedTier + '-' + (auth.profile?.phone ?? '')}
             tierName={TIER_META[selectedTier].name}
             tierPrice={TIER_META[selectedTier].price}
             tierColor={TIER_META[selectedTier].color}
-            userId={auth.profile?.uid || auth.profile?.phone?.replace(/\s+/g, '') || ''}
-            userPhone={auth.profile?.phone ?? auth.profile?.uid ?? ''}
+            userId={auth.profile?.uid ?? ''}
+            userPhone={auth.profile?.phone ?? ''}
             tier={selectedTier}
             onPaymentComplete={async () => {
-              const activated = await auth.updateTier(selectedTier);
-              if (!activated) return;
+              const refreshed = await auth.refreshProfile();
+              if (refreshed?.tier !== selectedTier) return;
               setStage('app');
               setActiveView('dashboard');
             }}
@@ -243,7 +243,7 @@ const App: React.FC = () => {
         score={insight.score}
         scoreLevel={insight.level}
         userName={auth.profile?.name}
-        onLock={auth.lock}
+        onLock={auth.logout}
         onLogout={auth.deleteAccount}
         onExportExpenses={() => exportExpensesToCSV(monthlyExpenses)}
         onExportInvestments={() => exportInvestmentsToCSV(investments)}
@@ -291,7 +291,7 @@ const App: React.FC = () => {
               onNavigate={setActiveView}
               userTier={userTier}
               expenseCount={monthlyExpenses.length}
-              onUpgrade={openPaidPlan}
+              onUpgrade={() => setActiveView('upgrade')}
             />
           )}
 
@@ -300,11 +300,11 @@ const App: React.FC = () => {
             <div className="animate-in">
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                 <button style={exportBtnStyle} onClick={() => exportExpensesToCSV(monthlyExpenses)}>
-                  ↓ Export CSV
+                  <Download size={14} strokeWidth={2.2} /> Export CSV
                 </button>
               </div>
               <ExpenseForm onAdd={addExpense} />
-              <ExpenseList expenses={monthlyExpenses} onRemove={removeExpense} currency={profile.currency} />
+              <ExpenseList expenses={monthlyExpenses} onRemove={removeExpense} onUpdate={updateExpense} currency={profile.currency} />
             </div>
           )}
 
@@ -313,7 +313,7 @@ const App: React.FC = () => {
             <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button style={exportBtnStyle} onClick={() => exportInvestmentsToCSV(investments)}>
-                  ↓ Export CSV
+                  <Download size={14} strokeWidth={2.2} /> Export CSV
                 </button>
               </div>
               <InvestmentSummaryBar summary={investmentSummary} monthlyIncome={profile.monthlyIncome} />
@@ -341,8 +341,8 @@ const App: React.FC = () => {
               onContribute={goals.contribute}
               onUpdateSaved={goals.updateSaved}
               currency={profile.currency}
-              maxGoals={userTier === 'free' ? 1 : undefined}
-              onUpgrade={() => openPaidPlan('silver')}
+              maxGoals={undefined}
+              onUpgrade={() => setActiveView('upgrade')}
             />
           )}
 
@@ -368,7 +368,7 @@ const App: React.FC = () => {
             <div className="animate-in">
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                 <button style={exportBtnStyle} onClick={() => exportNetWorthToCSV(netWorth.items)}>
-                  ↓ Export CSV
+                  <Download size={14} strokeWidth={2.2} /> Export CSV
                 </button>
               </div>
               <NetWorth
@@ -407,7 +407,7 @@ const App: React.FC = () => {
           {/* ── AI Chat ─────────────────────────────────────────── */}
           {activeView === 'chat' && (isLocked('chat') ? <UpgradeWall view="chat" /> :
             <AIChat
-              userId={auth.profile?.phone?.replace(/\s+/g, '') ?? ''}
+              userId={auth.profile?.uid ?? ''}
               profile={profile}
               breakdown={breakdown}
               investmentSummary={investmentSummary}
@@ -426,7 +426,7 @@ const App: React.FC = () => {
           {/* ── Alerts & SOS ────────────────────────────────────── */}
           {activeView === 'alerts' && (isLocked('alerts') ? <UpgradeWall view="alerts" /> :
             <AlertsPanel
-              userId={auth.profile?.uid || auth.profile?.phone?.replace(/\s+/g, '') || ''}
+              userId={auth.profile?.uid ?? ''}
               userTier={userTier}
               contact={alerts.contact}
               log={alerts.log}
@@ -460,7 +460,7 @@ const App: React.FC = () => {
           {activeView === 'profile' && auth.profile && (
             <ProfilePage
               profile={auth.profile}
-              uid={auth.profile.uid || auth.profile.phone.replace(/\s+/g, '')}
+              uid={auth.profile.uid}
               onNavigate={setActiveView}
             />
           )}
@@ -471,7 +471,7 @@ const App: React.FC = () => {
       {auth.profile && <SupportChatWidget profile={auth.profile} />}
 
       <footer className="app-footer">
-        <span>FinWise © {new Date().getFullYear()}</span>
+        <span>PesaFlow © {new Date().getFullYear()}</span>
         <span className="footer-dot">·</span>
         <span>Smart money management for every Kenyan</span>
       </footer>
@@ -490,6 +490,9 @@ const exportBtnStyle: React.CSSProperties = {
   fontFamily: 'Karla, sans-serif',
   fontWeight: 600,
   cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
 };
 
 
@@ -575,20 +578,6 @@ const wallActionRowStyle: React.CSSProperties = {
   gap: 10,
   flexWrap: 'wrap',
   marginTop: 4,
-};
-
-const wallSilverBtnStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '12px 16px',
-  background: '#fff',
-  color: '#0A1628',
-  border: '1px solid var(--border-acc)',
-  borderRadius: 10,
-  fontWeight: 900,
-  fontSize: 13,
-  cursor: 'pointer',
 };
 
 const wallGoldBtnStyle: React.CSSProperties = {

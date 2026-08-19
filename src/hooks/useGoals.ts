@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { Goal } from '../types';
 import { generateId } from '../utils/expenses';
-import { syncCollection, deleteFromCollection } from '../lib/sync';
+import { syncCollection, deleteFromCollection, fetchCollection } from '../lib/sync';
 
 const STORAGE_KEY = 'finwise_goals';
 const load = (): Goal[] => {
@@ -10,6 +10,15 @@ const load = (): Goal[] => {
 
 export const useGoals = () => {
   const [goals, setGoals] = useState<Goal[]>(load);
+
+  // Hydrate from Firestore on mount so goals load across devices, not just localStorage.
+  useEffect(() => {
+    let alive = true;
+    fetchCollection<Goal>('goals').then(remote => {
+      if (alive && remote) { setGoals(remote); localStorage.setItem(STORAGE_KEY, JSON.stringify(remote)); }
+    });
+    return () => { alive = false; };
+  }, []);
 
   const persist = (updated: Goal[]) => {
     setGoals(updated);

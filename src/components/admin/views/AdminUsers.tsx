@@ -3,11 +3,10 @@ import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import type { AdminUser, UserProfile, SubscriptionTier } from '../../../types';
 import { UserDetailDrawer } from './UserDetailDrawer';
+import { TIER_COLOR, TIER_LABEL, ACTIVE_TIERS, LEGACY_TIERS, GOLD_COMING_SOON } from '../../../lib/tiers';
 
-const TIERS: SubscriptionTier[] = ['free', 'silver', 'gold', 'platinum'];
-const TIER_COLOR: Record<SubscriptionTier, string> = {
-  free: '#9BAAC4', silver: '#C0C0C0', gold: '#C9A84C', platinum: '#A78BFA',
-};
+// Change-tier dropdown keeps every tier so an admin can still set a legacy tier.
+const TIERS: SubscriptionTier[] = [...ACTIVE_TIERS, ...LEGACY_TIERS];
 
 interface UserRow extends UserProfile { uid: string; }
 
@@ -65,10 +64,16 @@ export const AdminUsers: React.FC<{ canEdit: boolean; admin: AdminUser }> = ({ c
                 onChange={e => { e.stopPropagation(); changeTier(u.uid, e.target.value as SubscriptionTier); }}
                 style={{ ...selectStyle, color: TIER_COLOR[u.tier] }}
               >
-                {TIERS.map(t => <option key={t} value={t}>{t}</option>)}
+                {TIERS.map(t => (
+                  <option key={t} value={t}>
+                    {TIER_LABEL[t]}{t === 'gold' && GOLD_COMING_SOON ? ' (coming soon)' : ''}
+                  </option>
+                ))}
               </select>
             ) : (
-              <span style={{ fontSize: 12, fontWeight: 700, color: TIER_COLOR[u.tier] }}>{u.tier}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: TIER_COLOR[u.tier] }}>
+                {TIER_LABEL[u.tier]}{u.tier === 'gold' && GOLD_COMING_SOON ? ' (coming soon)' : ''}
+              </span>
             )}
           </div>
         ))}

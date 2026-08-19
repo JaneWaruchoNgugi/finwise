@@ -1,16 +1,21 @@
 import type { BillCategory, BillCategoryMeta, Bill, BillStatus } from '../types';
+import { readProfileDailyMultiplier } from '../utils/frequency';
+import {
+  Home, Lightbulb, Droplets, Wifi, Smartphone, ShieldCheck,
+  Repeat, Landmark, Tv, ClipboardList,
+} from 'lucide-react';
 
 export const BILL_META: Record<BillCategory, BillCategoryMeta> = {
-  rent:         { label: 'Rent / Mortgage',  icon: '🏠', color: '#60A5FA' },
-  electricity:  { label: 'Electricity',      icon: '💡', color: '#FBBF24' },
-  water:        { label: 'Water',            icon: '💧', color: '#54C5D0' },
-  internet:     { label: 'Internet / WiFi',  icon: '🌐', color: '#A78BFA' },
-  phone:        { label: 'Phone / Airtime',  icon: '📱', color: '#F472B6' },
-  insurance:    { label: 'Insurance',        icon: '🛡️', color: '#3DD68C' },
-  subscription: { label: 'Subscription',     icon: '📺', color: '#E879F9' },
-  loan:         { label: 'Loan Payment',     icon: '🏦', color: '#F87171' },
-  tv:           { label: 'TV / Cable',       icon: '📡', color: '#FB923C' },
-  other:        { label: 'Other',            icon: '📋', color: '#94A3B8' },
+  rent:         { label: 'Rent / Mortgage',  icon: Home, color: '#60A5FA' },
+  electricity:  { label: 'Electricity',      icon: Lightbulb, color: '#FBBF24' },
+  water:        { label: 'Water',            icon: Droplets, color: '#54C5D0' },
+  internet:     { label: 'Internet / WiFi',  icon: Wifi, color: '#A78BFA' },
+  phone:        { label: 'Phone / Airtime',  icon: Smartphone, color: '#F472B6' },
+  insurance:    { label: 'Insurance',        icon: ShieldCheck, color: '#3DD68C' },
+  subscription: { label: 'Subscription',     icon: Repeat, color: '#E879F9' },
+  loan:         { label: 'Loan Payment',     icon: Landmark, color: '#F87171' },
+  tv:           { label: 'TV / Cable',       icon: Tv, color: '#FB923C' },
+  other:        { label: 'Other',            icon: ClipboardList, color: '#94A3B8' },
 };
 
 export const getBillStatus = (bill: Bill): BillStatus => {
@@ -49,13 +54,17 @@ export const sortBillsByDueDate = (bills: Bill[]): Bill[] =>
     return daysA - daysB;
   });
 
-export const getMonthlyTotal = (bills: Bill[]): number =>
-  bills.reduce((sum, bill) => {
+export const getMonthlyTotal = (bills: Bill[]): number => {
+  const dailyMultiplier = readProfileDailyMultiplier();
+  return bills.reduce((sum, bill) => {
+    if (bill.frequency === 'daily')     return sum + bill.amount * dailyMultiplier;
     if (bill.frequency === 'weekly')    return sum + bill.amount * 4;
     if (bill.frequency === 'quarterly') return sum + bill.amount / 3;
     if (bill.frequency === 'annually')  return sum + bill.amount / 12;
     return sum + bill.amount;
   }, 0);
+};
 
 export const getUpcomingBills = (bills: Bill[], days = 7): Bill[] =>
-  bills.filter((b) => b.status !== 'paid' && getDaysUntilDue(b.dueDay) <= days);
+  // Daily bills have no single due date, so they don't belong in the "due this week" alert.
+  bills.filter((b) => b.status !== 'paid' && b.frequency !== 'daily' && getDaysUntilDue(b.dueDay) <= days);

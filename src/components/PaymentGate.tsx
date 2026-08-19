@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { ArrowRight, Banknote, CreditCard, LockKeyhole, RotateCcw, Smartphone, Zap } from 'lucide-react';
+import { ArrowRight, Banknote, Check, CreditCard, Crown, Circle, Gem, LockKeyhole, PartyPopper, RotateCcw, Smartphone, Sparkles, X, XCircle, Zap } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { app } from '../lib/firebase';
 import type { SubscriptionTier } from '../types';
 
@@ -22,11 +23,11 @@ const initiateStkPush   = httpsCallable(fns, 'initiateStkPush');
 const getPaymentStatus  = httpsCallable(fns, 'getPaymentStatus');
 const confirmSubscriptionPayment = httpsCallable(fns, 'confirmSubscriptionPayment');
 
-const TIER_META: Record<SubscriptionTier, { name: string; color: string; icon: string; features: string[] }> = {
-  free:     { name: 'Free',     color: '#9BAAC4', icon: '◎', features: [] },
-  silver:   { name: 'Silver',   color: '#C0C0C0', icon: '◈', features: ['Bills & recurring payments', 'Savings goals', 'Emergency fund', 'Net Worth'] },
-  gold:     { name: 'Gold',     color: '#C9A84C', icon: '◉', features: ['Everything in Silver', 'Investments', 'Insights', 'AI Chat', 'Alerts & SOS', 'Priority support', 'CSV exports'] },
-  platinum: { name: 'Platinum', color: '#A78BFA', icon: '✦', features: ['Legacy Platinum access', 'Everything in Gold', 'Priority support'] },
+const TIER_META: Record<SubscriptionTier, { name: string; color: string; icon: LucideIcon; features: string[] }> = {
+  free:     { name: 'Free',     color: '#9BAAC4', icon: Circle, features: [] },
+  silver:   { name: 'Silver',   color: '#C0C0C0', icon: Gem, features: ['Bills & recurring payments', 'Savings goals', 'Emergency fund', 'Net Worth'] },
+  gold:     { name: 'Gold',     color: '#C9A84C', icon: Crown, features: ['Everything in Silver', 'Investments', 'Insights', 'AI Chat', 'Alerts & SOS', 'Priority support', 'CSV exports'] },
+  platinum: { name: 'Platinum', color: '#A78BFA', icon: Sparkles, features: ['Legacy Platinum access', 'Everything in Gold', 'Priority support'] },
 };
 
 const INTRO_PRICE_END_MS = Date.parse('2026-06-30T20:59:59.999+03:00');
@@ -95,7 +96,7 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
     setLoading(true);
     setError('');
     try {
-      const res = await initiateStkPush({ phone: userPhone, amount: tierPrice, tier, userId, name: 'FinWise ' + tier }) as { data: { checkoutId: string } };
+      const res = await initiateStkPush({ phone: userPhone, amount: tierPrice, tier, userId, name: 'PesaFlow ' + tier }) as { data: { checkoutId: string } };
       setCheckoutId(res.data.checkoutId);
       setStep('awaiting');
     } catch (e: unknown) {
@@ -132,10 +133,10 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
         <div className="pg-left">
           <div style={{ display:'flex', flexDirection:'column', gap:28, width:'100%' }}>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-              <div style={S.logoMark}><span style={S.logoSym}>Ƒ</span></div>
+              <div style={S.logoMark}><span style={S.logoSym}>P</span></div>
               <div>
-                <div style={S.logoName}>FinWise</div>
-                <div style={S.logoTag}>YOUR MONEY, MASTERED</div>
+                <div style={S.logoName}>PesaFlow</div>
+                <div style={S.logoTag}>TRACK YOUR MONEY. GROW YOUR WEALTH. SLEEP BETTER.</div>
               </div>
             </div>
             <div style={S.planBox}>
@@ -223,7 +224,7 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
           {/* Failed */}
           {step === 'failed' && (
             <div className="pg-in" style={{ textAlign:'center' }}>
-              <div style={{ fontSize:48, marginBottom:12 }}>❌</div>
+              <div style={{ display:'flex', justifyContent:'center', marginBottom:12 }}><XCircle size={48} strokeWidth={1.8} color="#DC2626" /></div>
               <div style={S.title}>Payment Failed</div>
               <p style={S.sub}>The payment was not completed. You can try again.</p>
               <button className="pg-btn" style={S.btn} onClick={handleSendStk} disabled={loading || !userPhone}>
@@ -235,7 +236,7 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
           {/* Card coming soon */}
           {step === 'card' && (
             <div className="pg-in" style={{ textAlign:'center' }}>
-              <div style={{ fontSize:40, marginBottom:12 }}>💳</div>
+              <div style={{ display:'flex', justifyContent:'center', marginBottom:12 }}><CreditCard size={40} strokeWidth={1.8} color="#D97706" /></div>
               <div style={S.title}>Coming Soon</div>
               <p style={S.sub}>Card payments are coming soon. Please use M-Pesa to complete your subscription.</p>
               <button style={S.outlineBtn} onClick={() => setStep('method')}>← Use M-Pesa instead</button>
@@ -246,10 +247,10 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
           {step === 'success' && (
             <div className="pg-in" style={{ display:'flex', flexDirection:'column', gap:24 }}>
               <div style={{ display:'flex', justifyContent:'flex-end' }}>
-                <button onClick={onPaymentComplete} style={{ background:'var(--bg-surface,#f3f4f6)', border:'1px solid var(--border,#e5e7eb)', borderRadius:8, width:32, height:32, cursor:'pointer', fontSize:16, color:'#6B7280', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+                <button onClick={onPaymentComplete} style={{ background:'var(--bg-surface,#f3f4f6)', border:'1px solid var(--border,#e5e7eb)', borderRadius:8, width:32, height:32, cursor:'pointer', fontSize:16, color:'#6B7280', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={16} strokeWidth={2.4} /></button>
               </div>
               <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:52, marginBottom:8 }}>🎉</div>
+                <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}><PartyPopper size={52} strokeWidth={1.7} color="#D97706" /></div>
                 <div style={S.title}>You're on {tierName}!</div>
                 <p style={S.sub}>Your subscription is now active. Enjoy your new features.</p>
               </div>
@@ -258,7 +259,7 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
               <div style={{ background:'var(--gold-dim)', border:'1px solid var(--border-acc)', borderRadius:14, padding:'16px 20px' }}>
                 <div style={{ fontSize:11, color:'var(--text-3)', letterSpacing:'0.1em', marginBottom:6 }}>ACTIVE PLAN</div>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <span style={{ fontSize:24 }}>{TIER_META[tier].icon}</span>
+                  {(() => { const TierIcon = TIER_META[tier].icon; return <span style={{ display:'inline-flex', alignItems:'center', color: tierColor }}><TierIcon size={24} strokeWidth={2} /></span>; })()}
                   <div>
                     <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, fontWeight:700, color: tierColor }}>{tierName}</div>
                     <div style={{ fontSize:12, color:'var(--text-3)' }}>KES {tierPrice.toLocaleString()}/month</div>
@@ -266,8 +267,8 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
                 </div>
                 <ul style={{ margin:'12px 0 0', padding:0, listStyle:'none', display:'flex', flexDirection:'column', gap:5 }}>
                   {TIER_META[tier].features.map(f => (
-                    <li key={f} style={{ fontSize:13, color:'var(--text-2)' }}>
-                      <span style={{ color: tierColor, marginRight:6, fontWeight:700 }}>✓</span>{f}
+                    <li key={f} style={{ fontSize:13, color:'var(--text-2)', display:'flex', alignItems:'center', gap:6 }}>
+                      <Check size={14} strokeWidth={3} color={tierColor} style={{ flexShrink:0 }} />{f}
                     </li>
                   ))}
                 </ul>
@@ -280,10 +281,11 @@ export const PaymentGate: React.FC<PaymentGateProps> = ({
                   {SALE_TIERS.filter(t => t !== tier).map(t => {
                     const m = TIER_META[t];
                     const prices: Record<SubscriptionTier, number> = { free: 0, silver: currentTierPrice('silver'), gold: currentTierPrice('gold'), platinum: currentTierPrice('platinum') };
+                    const MIcon = m.icon;
                     return (
                       <div key={t} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 14px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <span>{m.icon}</span>
+                          <span style={{ display:'inline-flex', alignItems:'center', color: m.color }}><MIcon size={16} strokeWidth={2} /></span>
                           <span style={{ fontWeight:600, color: m.color, fontSize:14 }}>{m.name}</span>
                         </div>
                         <span style={{ fontSize:12, color:'var(--text-3)' }}>KES {prices[t].toLocaleString()}/mo</span>

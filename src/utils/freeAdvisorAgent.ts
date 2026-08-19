@@ -46,9 +46,9 @@ const isFinancialQuestion = (q: string) =>
 
 const nonFinancialReply = () =>
   [
-    'I can only help with FinWise financial questions: budgeting, spending, bills, goals, debt, savings, emergency fund, investments, net worth, and Kenyan money decisions.',
+    'I can only help with PesaFlow financial questions: budgeting, spending, bills, goals, debt, savings, emergency fund, investments, net worth, and Kenyan money decisions.',
     'Ask something like "How can I reduce my spending?", "Which bill should I pay first?", "Can I afford to invest?", or "How fast can I build my emergency fund?"',
-    '**Action today: ask me one question about your money plan or current FinWise data.**',
+    '**Action today: ask me one question about your money plan or current PesaFlow data.**',
   ].join('\n\n');
 
 
@@ -94,7 +94,7 @@ const fallbackAdvice = (ctx: FreeAdvisorContext) => {
   const { profile, breakdown } = ctx;
   const advice = getInvestmentAdvice(s.income);
   const lines = [
-    `Here is your current FinWise readout: you have ${formatCurrency(s.income, profile.currency)} monthly income and have spent ${formatCurrency(breakdown.totalExpenses, profile.currency)} so far, which is ${s.spendRatio}% of income.`,
+    `Here is your current PesaFlow readout: you have ${formatCurrency(s.income, profile.currency)} monthly income and have spent ${formatCurrency(breakdown.totalExpenses, profile.currency)} so far, which is ${s.spendRatio}% of income.`,
   ];
 
   if (s.spendRatio >= 90) {
@@ -121,7 +121,7 @@ export const generateFreeAdvisorReply = (message: string, ctx: FreeAdvisorContex
   }
 
   if (!s.income) {
-    return 'I need your monthly income before I can give useful advice.\n\nSet your income in the Advisor tab, then I can calculate spending health, savings targets, emergency fund targets, and investment room.\n\n**Action today: enter your monthly take-home income in FinWise.**';
+    return 'I need your monthly income before I can give useful advice.\n\nSet your income in the Advisor tab, then I can calculate spending health, savings targets, emergency fund targets, and investment room.\n\n**Action today: enter your monthly take-home income in PesaFlow.**';
   }
 
   if (q.includes('spending') || q.includes('expense') || q.includes('healthy') || q.includes('cut') || q.includes('cost') || q.includes('budget')) {
@@ -176,7 +176,7 @@ export const generateFreeAdvisorReply = (message: string, ctx: FreeAdvisorContex
     const surplus = Math.max(0, s.income - breakdown.totalExpenses - billsMonthlyTotal);
     const safeAmount = Math.max(0, Math.round(surplus * 0.5));
 
-    return `Based on your FinWise data, your income is ${formatCurrency(s.income, profile.currency)}, spending is ${formatCurrency(breakdown.totalExpenses, profile.currency)}, and recorded monthly bills are ${formatCurrency(billsMonthlyTotal, profile.currency)}.
+    return `Based on your PesaFlow data, your income is ${formatCurrency(s.income, profile.currency)}, spending is ${formatCurrency(breakdown.totalExpenses, profile.currency)}, and recorded monthly bills are ${formatCurrency(billsMonthlyTotal, profile.currency)}.
 
 A safer affordability limit is about ${formatCurrency(safeAmount, profile.currency)} right now, because you should keep room for emergency savings and unpaid bills. If the purchase is non-essential, delay it when spending is above 70% of income.
 
@@ -210,7 +210,7 @@ A safer affordability limit is about ${formatCurrency(safeAmount, profile.curren
 
 Keep KRA, NSSF, SHA/NHIF-style health cover, loan obligations, and insurance ahead of discretionary spending. I can help you budget for these, but for exact tax filing or legal compliance, confirm with KRA or a qualified advisor.
 
-**Action today: add your recurring statutory or insurance payments as bills so FinWise can budget for them.**`;
+**Action today: add your recurring statutory or insurance payments as bills so PesaFlow can budget for them.**`;
   }
 
   if (q.includes('saving') || q.includes('plan') || q.includes('monthly')) {

@@ -1,6 +1,6 @@
 {
-  "name": "FinWise",
-  "short_name": "FinWise",
+  "name": "PesaFlow",
+  "short_name": "PesaFlow",
   "description": "Smart money management for every Kenyan.",
   "start_url": "/",
   "scope": "/",
@@ -11,7 +11,7 @@
   "categories": ["finance", "productivity"],
   "icons": [
     {
-      "src": "/finwise-icon.svg",
+      "src": "/pesaflow-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

@@ -1,73 +1,175 @@
-# React + TypeScript + Vite
+================================================================
+PESAFLOW — PRODUCT OVERVIEW
+Smart money management for every Kenyan
+================================================================
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Tagline: "Track your money. Grow your wealth. Sleep better."
+(Formerly branded "FinWise".)
 
-Currently, two official plugins are available:
+----------------------------------------------------------------
+WHAT IS PESAFLOW?
+----------------------------------------------------------------
+PesaFlow is a personal-finance web app (installable as a PWA /
+Android app) built specifically for Kenyans — including people who
+earn a DAILY income, not just a monthly salary. It brings spending,
+bills, savings goals, investments, net worth, an emergency fund,
+alerts and an AI money advisor into one calm dashboard.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- KES-first, M-Pesa-friendly, built around Kenyan money habits.
+- Data is cached on-device (works offline) and syncs to the cloud
+  so it follows you across devices.
+- Sign in with a phone number (07x or 01x, e.g. 0110…) + a 4-digit
+  PIN. No bank login required.
 
-## React Compiler
+----------------------------------------------------------------
+PRICING MODEL (CURRENT)
+----------------------------------------------------------------
+Paid subscriptions are currently switched OFF while the user base
+grows. The model is:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+FREE — everything, for everyone, KES 0
+Expense tracking & categorisation, Financial Advisor view,
+Dashboard & monthly summary, Bills & recurring payments,
+Savings goals with deadlines, Emergency fund tracker,
+Net Worth calculator.
 
-## Expanding the ESLint configuration
+GOLD — "Coming soon" (not yet purchasable)
+Advanced intelligence, launching later: Investment portfolio
+tracking, Spending insights & analytics, AI Chat advisor,
+Alerts & SOS system, Priority support, CSV data exports.
+(Standard price when it launches: KES 599/mo.)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Only the four "Gold" tools (Investments, Insights, AI Chat, Alerts)
+are gated behind a "Coming soon" wall. Everything else is free.
+Silver & Platinum are legacy tiers (kept only for old accounts).
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+----------------------------------------------------------------
+INCOME MODES (Advisor)
+----------------------------------------------------------------
+Users choose how they earn, and the whole plan adapts:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Single Income   — one monthly take-home figure.
+- Multiple Streams — salary + freelance + business + rent, etc.
+- Daily Income    — for hustlers/daily earners: enter a daily
+  amount + days worked per week. Monthly income is estimated
+  as (daily × days/week × 4.33).
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+For DAILY earners the whole allocation view switches to a
+PER-DAY breakdown ("split each day's pay"): Living, Emergency,
+Savings and Investments are shown as amounts to set aside from
+every working day's pay, with daily-earner tips & habits.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+----------------------------------------------------------------
+CORE FEATURES
+----------------------------------------------------------------
+- Expenses: add/EDIT/remove, categorised, with a One-off / Daily /
+  Monthly frequency (daily items roll up into the monthly total by
+  working days). Add form opens in a modal.
+- Bills: recurring bills with Daily / Weekly / Monthly / Quarterly /
+  Annually frequency, due dates, paid/overdue status. Modal add.
+- Savings goals with deadlines, contributions and progress.
+- Emergency fund tracker (target months, deposits/withdrawals,
+  months-covered; per-day set-aside for daily earners).
+- Net Worth calculator (assets vs liabilities) with inline editing.
+- Investments / Savings vehicles (see next section).
+- Spending insights & analytics; Dashboard with a financial-health
+  score; Financial Advisor with personalised tips.
+- AI Chat financial advisor (context-aware, powered by Claude).
+- Alerts & SOS: trusted-contact emergency notifications + AI plans.
+- Spending-habits tracker; CSV exports.
+- All icons are lucide (SVG) — no emoji.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+----------------------------------------------------------------
+INVESTMENTS & SAVINGS VEHICLES (the "Investments" tab)
+----------------------------------------------------------------
+The Goals/Investments area captures how Kenyans actually save.
+Add entries via a popup and pick a type:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- Money Market Fund (MMF): provider, interest rate (% p.a.),
+  "locked-in vs flexible", and a COMPOUND GROWTH PROJECTION to
+  the deadline (future value + interest earned).
+- SACCO: which SACCO, held as Dividends or Shares, dividend rate,
+  lock-in, and the same growth projection.
+- Chama (merry-go-round): number of members, your payout
+  position, contribution frequency (daily/weekly/monthly) and
+  per-member amount. Computes the POT (per-member × members) and
+  estimates the date your turn comes around.
+- Insurance cover, plus standard goals (emergency, vacation,
+  education, property, car, business, retirement, wedding, other).
+
+Everything persists to the cloud and syncs across devices.
+
+----------------------------------------------------------------
+NEWSLETTER & EMAIL
+----------------------------------------------------------------
+- Landing-page footer captures subscriber emails into a Firestore
+  "subscribers" collection (public can subscribe; list is private).
+- Admins send updates from the Admin → Newsletter section, backed
+  by Cloud Functions (getSubscribers / sendNewsletter) using SMTP
+  (Brevo/SendGrid/Gmail). Gated by an ADMIN_KEY.
+
+----------------------------------------------------------------
+ADMIN PANEL
+----------------------------------------------------------------
+A separate, hidden admin interface (route: /admin or /?__admin),
+fully responsive (desktop sidebar; mobile shows the main tabs plus
+a "More" sheet).
+
+Roles: super_admin, support, finance.
+
+Sections: Overview, Users, Payments, Subscriptions, Support Chats,
+Support Cases, Reports, Newsletter, Chat Health, Audit Logs,
+App Config, Settings.
+
+Tier displays are synced to the current model: Free + Gold
+("coming soon"); Silver/Platinum shown only if legacy users exist.
+
+Admin sign-in is server-verified (Cloud Function) and mints a
+Firebase token with an "admin" claim; passwords are hashed with
+scrypt (migrated automatically from the old scheme on first login).
+
+----------------------------------------------------------------
+TECHNOLOGY
+----------------------------------------------------------------
+- Frontend: React + TypeScript + Vite. Capacitor for Android/iOS.
+  Hosted on Vercel (and Firebase Hosting).
+- Backend: Firebase — Cloud Firestore (data), Cloud Functions
+  (Node 20, Blaze plan) for auth, payments, AI chat and email.
+- AI: Anthropic Claude (AI advisor chat).
+- Payments: M-Pesa (Safaricom Daraja STK Push) — wired but
+  currently deferred while subscriptions are off.
+
+----------------------------------------------------------------
+AUTHENTICATION & SECURITY
+----------------------------------------------------------------
+- Phone (07x / 01x) + 4-digit PIN sign-in and signup.
+- Server-verified auth via a Cloud Function (authWithPin) that
+  mints a Firebase custom token, so Firestore rules can scope every
+  user's data to only themselves (request.auth.uid). Admins get an
+  "admin" claim.
+- PINs hashed with salted SHA-256; admin passwords with scrypt.
+  Legacy weak hashes are migrated automatically on next login.
+- "Reset PIN": set a new PIN (verified by the account name) without
+  wiping data. "Reset everything" remains as a last resort.
+- Tightened Firestore rules (scoped per-user + admin-only sections)
+  are staged in firestore.rules.locked, deployed as the final step
+  after enabling Firebase Auth + granting the functions service
+  account the "Service Account Token Creator" role.
+- Newsletter list, audit logs and app config are server/admin-only.
+
+----------------------------------------------------------------
+TRUST & SECURITY (as messaged to users)
+----------------------------------------------------------------
+- PIN-protected access, KES currency support, no bank login.
+- Bank-level encryption; data private by design.
+- M-Pesa payments secured via the Safaricom Daraja API.
+
+----------------------------------------------------------------
+QUICK STATS (shown on landing page)
+----------------------------------------------------------------
+- 12,000+ active users
+- KES 2.4B+ tracked across users
+- 98% goal achievement rate
+- 4.9 / 5 average user rating
+
+================================================================
